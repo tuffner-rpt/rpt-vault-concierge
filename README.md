@@ -19,6 +19,6 @@ Without credentials, the portal runs safely in demo mode: provisioning returns m
 3. Add the environment variables from `.env.example` in **Project Settings → Environment Variables**.
 4. Deploy. Vercel will run `npm run build` and host the pages and API routes.
 
-Set `NEXT_PUBLIC_SITE_URL` to your custom production URL if you use one. Otherwise, the app automatically uses Vercel's production deployment URL for social metadata.
+The app automatically uses Vercel's production deployment URL for social metadata.
 
 For production, store `OPENAI_API_KEY` and `VAULT_TOKEN` as encrypted Vercel environment variables. Ensure `VAULT_ADDR` is reachable from Vercel's serverless network, restrict the token to the required KV paths, and prefer a short-lived Vault auth method over a static token.
