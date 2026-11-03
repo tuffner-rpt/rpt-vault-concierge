@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review Vault onboarding · RPT</title><link rel="stylesheet" href="/assets/styles.css"><script src="/assets/onboard.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">RPT<span> / VAULT CONCIERGE</span></a><span class="badge">SECURE ONBOARDING</span></header>
+<main>
+  <p class="eyebrow">WATSONX ORCHESTRATE + HASHICORP VAULT</p>
+  <h1>A conversation.<br>A reviewed change.</h1>
+  <p class="intro">Your agent prepares the request. You authorize the change with your own Vault permissions.</p>
+  <ol class="steps"><li>01 · Describe in chat</li><li class="active">02 · Review & authorize</li><li>03 · Create in Vault</li></ol>
+  <section class="card" aria-labelledby="review-title">
+    <div class="card-head"><h2 id="review-title">Review your request</h2><span class="dot"></span></div>
+    <p id="status" role="status" aria-live="polite">Loading your plan…</p>
+    <dl id="summary" hidden></dl>
+    <p id="scope" class="notice" hidden></p>
+    <form id="execute" hidden autocomplete="off">
+      <label for="vault-token">Your scoped Vault token</label>
+      <input id="vault-token" type="password" autocomplete="off" required spellcheck="false" maxlength="4096" placeholder="Enter a short-lived token">
+      <p class="hint">Sent to this server over HTTPS and used only for this request. It is never sent to the chatbot or saved by this application. Use a short-lived token with only the permissions this change needs.</p>
+      <fieldset id="secret-fields" hidden><legend>Secret fields</legend><p class="hint">Enter secret values here. Keep them out of the conversation.</p><div id="fields"></div><button id="add-field" class="secondary" type="button">+ Add field</button></fieldset>
+      <label class="confirm"><input id="confirmed" type="checkbox" required><span>I reviewed the Vault address, namespace, path, and operation above and authorize this change.</span></label>
+      <button id="submit" type="submit">Confirm & create</button>
+    </form>
+    <pre id="receipt" hidden></pre>
+  </section>
+  <p class="footer-note">Create-only onboarding · Existing secrets cannot be overwritten · Vault ACLs apply</p>
+</main>
+</body></html>

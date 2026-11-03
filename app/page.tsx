@@ -153,6 +153,12 @@ export default function Home() {
             <span className="ask-button">Ask OpenAI <b>→</b></span>
           </button>
 
+          <a className="agent-banner watsonx-banner" href="/vault-onboarding">
+            <span className="agent-gem">↗</span>
+            <span><strong>Onboard engines and secrets with IBM Granite</strong><small>Describe your request, review the change, and authorize it with your Vault permissions.</small></span>
+            <span className="ask-button">Open IBM chat <b>→</b></span>
+          </a>
+
           <footer id="docs"><span>RPT Vault Developer Concierge - Demo</span></footer>
         </section>
       </div>

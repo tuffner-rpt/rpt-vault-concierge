@@ -1,0 +1,195 @@
+# RPT Vault Concierge — IBM Granite + watsonx Orchestrate
+
+This repository contains an Orchestrate native agent, three IBM ADK Python tools,
+a Vercel-compatible FastAPI bridge, and an embeddable IBM chat page. It is designed
+to connect to the existing `rpt-vault-concierge-demo` website without replacing it.
+
+**Current status:** implementation and local automated verification are available.
+IBM ADK 2.19.1 validates the agent, tools and connection schemas. An isolated local
+Vault v2.1.2 test verifies actual engine creation, scoped secret writes, and overwrite
+and ACL refusal. The user's IBM tenant, actual Granite model availability, target
+Vault connectivity, and deployment to the supplied website have not been verified.
+The parent Next.js website includes `/vault-onboarding` for embedding this bridge.
+Configure its `WXO_BRIDGE_URL` after deploying the bridge and IBM agent.
+
+## Behavior
+
+1. A user describes the engine or secret they need in the IBM chat widget.
+2. Granite calls a tool to prepare a signed plan; no Vault operation runs yet.
+3. The user opens the review link in a new tab and reviews the fixed Vault host,
+   namespace, operation and path.
+4. The user supplies their own short-lived scoped Vault token and, for secrets,
+   values in the separate form, then explicitly confirms.
+5. The server executes against Vault using that caller token and returns a receipt
+   containing paths and status, never values. The application does not persist
+   tokens or secret values. The browser clears credential fields after submission.
+
+The Orchestrate identity is an anonymous planner identity, **not** Vault authority.
+The only shared tool credential can prepare plans; it cannot execute them. The
+backend has no administrator Vault token. Plan links contain metadata, expire in
+10 minutes, and are held in a URL fragment that is removed on page load. Do not
+put confidential data in descriptions or path names; those remain in chat history.
+
+| Capability | Implemented scope |
+| --- | --- |
+| KV v2 | Enable mount; create secrets on an existing mount |
+| Transit | Enable mount only; no keys or encryption operations |
+| Database | Enable mount only; no connections, roles or credentials |
+| PKI | Enable mount only; no CA, certificate or issuance role configuration |
+| Existing secrets | Never read or overwrite; KV v2 writes use `cas=0` |
+| Existing compatible engine | No-op; incompatible engines are rejected |
+| Updates/deletion/policy changes | No exposed operations |
+
+The default allowed mount prefix is `onboard-`. Customize `ALLOWED_MOUNT_PREFIX`
+and each user's Vault policy for the environment. [Example ACL](docs/vault-policy.hcl).
+Plans can be replayed within their validity period; safety comes from compatible
+mount no-op behavior and Vault's atomic KV v2 create-only CAS, not a single-use store.
+
+## Run locally
+
+Use Python 3.12 or later. IBM ADK 2.19.1 supports Python 3.11–3.14.
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+cp .env.example .env
+```
+
+Set `APP_ORIGIN=http://127.0.0.1:8000`, the intended `VAULT_ADDR`, namespace and
+two independent random 32-byte or longer keys in `.env`. Generate each value with
+`openssl rand -hex 32`. Keep `.env` out of source control. Local loopback HTTP is
+allowed for development; production origins require HTTPS. Vault must have a
+trusted TLS certificate; verification is always enabled, redirects are disabled.
+
+```sh
+.venv/bin/uvicorn api.index:app --env-file .env --host 127.0.0.1 --port 8000
+.venv/bin/python -m pytest -q
+```
+
+`/` and `/onboard` display the secure form. A signed review link comes from the
+agent's preparation tools. `/chat` displays an explicit setup error until its IBM
+configuration is provided. `/api/health` is application liveness only; it does not
+contact Vault and must not be treated as an integration health check.
+
+## Configure IBM watsonx Orchestrate
+
+Use a separate ADK environment if preferred; IBM ADK is not a bridge runtime
+dependency. Never place an IBM API key, private signing key or Vault token in HTML.
+
+```sh
+pip install ibm-watsonx-orchestrate==2.19.1
+python scripts/validate-agent.py
+orchestrate env add --name rpt --url YOUR_ORCHESTRATE_INSTANCE_URL
+orchestrate env activate rpt
+orchestrate models list
+```
+
+Follow the CLI's secure authentication prompt. The agent's `llm` starts with IBM's
+documented `watsonx/ibm/granite-3-8b-instruct` ID. Its availability varies by tenant;
+replace it with the **exact available IBM Granite chat model ID** from your tenant.
+Do not silently substitute another model family. No separate inference provider
+is used: Orchestrate runs the configured Granite model.
+
+Create the connection first:
+
+```sh
+orchestrate connections import -f watsonx/connection.yaml
+```
+
+In Orchestrate **Manage → Connections**, set these two key/value credentials in
+**both draft and live** for `rpt_vault_bridge`:
+
+| Credential | Value |
+| --- | --- |
+| `bridge_url` | Stable HTTPS origin of the bridge, no trailing slash or path |
+| `api_key` | Same secret value as server-side `WXO_BRIDGE_API_KEY` |
+
+Use the UI to avoid putting secrets into shell history. For Developer Edition,
+use the CLI credential mechanism documented by IBM. Tools read the connection
+through `connections.key_value()`, never process environment variables.
+
+```sh
+bash scripts/import-agent.sh
+```
+
+Test the agent in draft, then deploy:
+
+```sh
+orchestrate agents deploy --name rpt_vault_concierge
+orchestrate channels webchat embed --agent-name rpt_vault_concierge
+```
+
+Copy the returned public identifiers into the bridge's `WXO_HOST_URL`,
+`WXO_ORCHESTRATION_ID`, `WXO_AGENT_ID`, `WXO_AGENT_ENVIRONMENT_ID`, and, for IBM
+Cloud, `WXO_DEPLOYMENT_PLATFORM=ibmcloud` and `WXO_CRN`.
+
+### Secure embedded chat
+
+Generate an RSA signing pair outside the repository:
+
+```sh
+openssl genrsa -out /secure/location/rpt-wxo-private.pem 3072
+openssl rsa -in /secure/location/rpt-wxo-private.pem -pubout -out /secure/location/rpt-wxo-public.pem
+```
+
+Register the public key in the agent's embedded-chat security configuration for
+the target environment. Set the private PEM content as `WXO_CHAT_PRIVATE_KEY` in
+the bridge server's secret environment configuration. The server issues five-minute
+RS256 identity tokens; the widget refreshes them through `authTokenNeeded`.
+This implementation includes only `sub`, `iat` and `exp` claims and does not send
+SSO or sensitive identity payloads. If the tenant requires encrypted user payloads,
+implement that tenant's identity integration before release. Do not disable IBM's
+embed security to work around an error.
+
+Anonymous chat is intentional: it can prepare plans but cannot authorize Vault
+changes. If the site should restrict who may chat, gate `/chat`, `/api/chat-config`
+and `/api/chat-token` with the existing website's verified login/session. Do not
+trust a browser-provided role or user ID. Apply platform rate limits to public
+chat endpoints according to expected usage before broadly exposing them.
+
+## Deploy and embed on the existing website
+
+Deploy this bridge as its own Vercel project using `vercel.json`, Python 3.12 and
+`requirements.txt`; set the environment variables from `.env.example` through
+Vercel's environment settings. Use a stable production origin for `APP_ORIGIN` and
+the Orchestrate connection, rather than a one-off preview URL. Deploying this
+repository over the existing website would replace that website; keep them separate.
+
+Ensure the bridge can reach Vault. A private Vault network may require an
+approved network path or hosting the bridge inside that network instead.
+
+Set `WEBSITE_ORIGIN` to the exact website origin and paste the iframe from
+[docs/embed.html](docs/embed.html) into its chatbot area. Replace the bridge origin.
+If the original website has CSP, allow the bridge origin in `frame-src`. The review
+form deliberately rejects framing and must open in a new tab; verify IBM's link
+handling for your tenant during acceptance. The chat page allows only itself and
+the configured website as frame parents. Its anonymous session continuity also
+works without third-party cookies during a page session.
+
+If Vercel Deployment Protection guards the bridge, IBM's Python tool runtime must
+have an approved access route to it. Do not embed a deployment bypass secret in
+browser code. The browser and server-side IBM tools both need to reach the bridge;
+test those paths independently. Preserve the original site's access protections.
+
+Do not attach analytics or chat scripts to the secure secret-entry page. It uses
+a restrictive CSP and has no third-party scripts. Review hosting/request-capture
+settings so request bodies containing credentials are not recorded.
+
+## Verification and sources
+
+See [acceptance checks](docs/acceptance.md) for local evidence and the live test
+sequence. The unit tests use simulated Vault responses; the optional local Vault
+test starts and stops a real isolated dev server with disposable in-memory data.
+Successful real IBM
+import, Granite inference, webchat security, deployment, and Vault writes still
+require the target environments and live acceptance.
+
+Implementation references:
+
+- [IBM native agent specifications](https://developer.watson-orchestrate.ibm.com/agents/build_agent)
+- [IBM Python tool connections](https://developer.watson-orchestrate.ibm.com/connections/associate_connection_to_tool/python_connections)
+- [IBM secure embedded chat setup](https://developer.watson-orchestrate.ibm.com/webchat/get_started)
+- [IBM webchat events](https://developer.watson-orchestrate.ibm.com/webchat/events)
+- [Vault mounts API](https://developer.hashicorp.com/vault/api-docs/system/mounts)
+- [Vault KV v2 API and CAS](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+- [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
