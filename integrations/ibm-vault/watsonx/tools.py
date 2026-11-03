@@ -27,8 +27,12 @@ def _call(method: str, path: str, payload=None) -> str:
 
 
 @tool(expected_credentials=CREDS)
-def vault_onboarding_catalog() -> str:
-    """Get allowed engine types, mount prefix and onboarding limitations. Does not connect to Vault."""
+def vault_onboarding_catalog(topic: str) -> str:
+    """Get engine types, mount prefix and onboarding limitations without connecting to Vault.
+
+    Args:
+        topic: Set to engines to retrieve the engine catalog. No credentials or secret data.
+    """
     return _call("GET", "/api/catalog")
 
 

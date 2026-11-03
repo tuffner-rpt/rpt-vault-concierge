@@ -92,11 +92,17 @@ orchestrate env activate rpt-vault
 orchestrate models list
 ```
 
-Follow the CLI's secure authentication prompt. The agent's `llm` starts with IBM's
-documented `watsonx/ibm/granite-3-8b-instruct` ID. Its availability varies by tenant;
-replace it with the **exact available IBM Granite chat model ID** from your tenant.
+Follow the CLI's secure authentication prompt. The agent uses
+`watsonx/ibm/granite-4-h-small`, verified in the target instance's full model catalog
+on November 3, 2026 (`orchestrate models list -a`).
 Do not silently substitute another model family. No separate inference provider
 is used: Orchestrate runs the configured Granite model.
+
+The target instance currently returns malformed native tool-call arguments for
+Granite 4 H Small with `react_core`. Live catalog and review-link smoke tests use
+`style: react`, IBM's prompt-based tool calling. IBM marks this style deprecated;
+retest `react_core` after an IBM runtime/model update before migrating.
+
 
 Create the connection first:
 
