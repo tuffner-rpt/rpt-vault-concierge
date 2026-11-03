@@ -202,3 +202,148 @@ def test_chat_identity_signed_short_lived_and_stable_without_cookies(client, mon
 def test_missing_configuration_fails_closed(client, monkeypatch):
     monkeypatch.delenv("WXO_BRIDGE_API_KEY")
     assert client.post("/api/plans", headers={"x-api-key": KEY}, json=plan_input()).status_code == 503
+
+
+@pytest.mark.parametrize("engine", ["aws", "azure", "gcp", "gcpkms", "alicloud", "consul", "kv-v1", "ssh", "rabbitmq", "ldap", "openldap", "mongodbatlas", "nomad", "kubernetes", "terraform", "totp", "transform", "kmip", "keymgmt", "custom-secrets-plugin"])
+def test_all_mountable_engine_names_can_be_planned(client, engine):
+    signed = ticket(client, engine=engine)
+    assert bridge.read_plan(signed).engine == engine
+
+
+@pytest.mark.parametrize("engine", ["auth", "system", "identity", "cubbyhole", "foo/bar", "https://evil.example", "aws%2fconfig"])
+def test_system_and_unsafe_engine_names_rejected(client, engine):
+    assert client.post("/api/plans", headers={"x-api-key": KEY}, json=plan_input(engine=engine)).status_code == 422
+
+
+SCHEMA = {"paths": {"/roles/{name}": {"post": {"summary": "Configure a role", "requestBody": {"content": {"application/json": {"schema": {"type": "object", "required": ["ttl"], "properties": {"ttl": {"type": "integer"}}, "additionalProperties": False}}}}}}, "/creds/{name}": {"get": {"summary": "Generate credentials"}}}, "components": {}}
+
+
+def operation_ticket(client, **changes):
+    return ticket(client, **{"action": "engine_operation", "engine": "aws", "endpoint": "roles/demo", "method": "POST", **changes})
+
+
+def operation_responses(*tail, document=None):
+    mount = (200, {"data": {"type": "aws"}})
+    return [mount, mount, (200, {"openapi": document or SCHEMA}), *tail]
+
+
+def redis_config(monkeypatch):
+    monkeypatch.setenv("UPSTASH_REDIS_REST_URL", "https://redis.example.com")
+    monkeypatch.setenv("UPSTASH_REDIS_REST_TOKEN", "test-redis-secret")
+
+
+def test_live_schema_inspection_returns_no_provider_credentials(client, monkeypatch):
+    fake_vault(monkeypatch, [(200, {"data": {"type": "aws"}}), (200, {"openapi": SCHEMA})])
+    response = client.post("/api/inspect", headers=HEADERS, json={"ticket": operation_ticket(client), "vault_token": "hvs.test"})
+    assert response.status_code == 200
+    assert response.json()["request_schema"]["required"] == ["ttl"]
+    assert "hvs.test" not in response.text
+
+
+def test_generic_operation_typed_confirmation_required(client):
+    assert execute(client, operation_ticket(client), operation_json='{"ttl":60}').status_code == 422
+
+
+def test_schema_validated_operation_uses_durable_claim_before_write(client, monkeypatch):
+    redis_config(monkeypatch)
+    calls = fake_vault(monkeypatch, operation_responses((200, {"result": "OK"}), (204, None)))
+    response = execute(client, operation_ticket(client), operation_json='{"ttl":60}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "completed"
+    assert calls[-2].url.host == "redis.example.com"
+    assert json.loads(calls[-2].content)[-1] == "NX"
+    assert "X-Vault-Token" not in calls[-2].headers
+    assert calls[-1].url.path == "/v1/onboard-payments/roles/demo"
+    assert "Authorization" not in calls[-1].headers
+
+
+def test_schema_mismatch_never_claims_or_writes(client, monkeypatch):
+    calls = fake_vault(monkeypatch, operation_responses())
+    response = execute(client, operation_ticket(client), operation_json='{"ttl":"credential-never-echo"}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 422
+    assert "credential-never-echo" not in response.text
+    assert len(calls) == 3
+
+
+def test_unpublished_endpoint_never_claims_or_writes(client, monkeypatch):
+    calls = fake_vault(monkeypatch, operation_responses())
+    response = execute(client, operation_ticket(client, endpoint="undocumented/demo"), confirmation_text="EXECUTE POST onboard-payments/undocumented/demo")
+    assert response.status_code == 422
+    assert len(calls) == 3
+
+
+def test_remote_schema_references_never_fetched(client, monkeypatch):
+    schema = {"paths": {}, "components": {"schemas": {"x": {"$ref": "https://evil.example/steal"}}}}
+    calls = fake_vault(monkeypatch, operation_responses(document=schema))
+    response = execute(client, operation_ticket(client), confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 409
+    assert len(calls) == 3
+
+
+def test_operation_replay_is_refused_before_write(client, monkeypatch):
+    redis_config(monkeypatch)
+    calls = fake_vault(monkeypatch, operation_responses((200, {"result": None})))
+    response = execute(client, operation_ticket(client), operation_json='{"ttl":60}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 409
+    assert len(calls) == 4
+
+
+def test_missing_durable_store_refuses_mutation(client, monkeypatch):
+    monkeypatch.delenv("UPSTASH_REDIS_REST_URL", raising=False)
+    calls = fake_vault(monkeypatch, operation_responses())
+    response = execute(client, operation_ticket(client), operation_json='{"ttl":60}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 503
+    assert len(calls) == 3
+
+
+def test_generated_credentials_return_only_to_secure_browser_endpoint(client, monkeypatch):
+    redis_config(monkeypatch)
+    fake_vault(monkeypatch, operation_responses((200, {"result": "OK"}), (200, {"data": {"secret_key": "generated-test-secret"}, "lease_id": "aws/creds/demo/test", "lease_duration": 60})))
+    signed = operation_ticket(client, method="GET", endpoint="creds/demo")
+    response = execute(client, signed)
+    assert response.status_code == 200
+    assert response.json()["sensitive_result"]["data"]["secret_key"] == "generated-test-secret"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH"])
+def test_generic_operations_cannot_bypass_kv_v2_cas(client, method):
+    result = client.post("/api/plans", headers={"x-api-key": KEY}, json=plan_input(action="engine_operation", endpoint="data/dev/password", method=method))
+    assert result.status_code == 422
+
+
+def test_disable_requires_typed_confirmation_and_durable_claim(client, monkeypatch):
+    signed = ticket(client, action="disable_engine")
+    assert execute(client, signed).status_code == 422
+    redis_config(monkeypatch)
+    calls = fake_vault(monkeypatch, [(200, {"data": {"type": "kv", "options": {"version": "2"}}}), (200, {"result": "OK"}), (204, None)])
+    response = execute(client, signed, confirmation_text="DISABLE onboard-payments")
+    assert response.status_code == 200
+    assert calls[-1].method == "DELETE"
+    assert calls[-1].url.path == "/v1/sys/mounts/onboard-payments"
+
+
+def test_tune_rejects_audit_weakening_options(client, monkeypatch):
+    calls = fake_vault(monkeypatch, [(200, {"data": {"type": "kv", "options": {"version": "2"}}})])
+    response = execute(client, ticket(client, action="tune_engine"), operation_json='{"audit_non_hmac_request_keys":["password"]}')
+    assert response.status_code == 422
+    assert len(calls) == 1
+
+
+def test_nested_kv_read_matches_wildcard_schema():
+    plan = bridge.Plan(action="engine_operation", engine="kv-v2", mount="onboard-test", endpoint="data/dev/database", method="GET")
+    assert bridge.operation_definition({"paths": {"/data/{path}": {"get": {"summary": "Read secret"}}}}, plan)["summary"] == "Read secret"
+
+
+def test_kv_alias_cannot_bypass_cas(client):
+    result = client.post("/api/plans", headers={"x-api-key": KEY}, json=plan_input(action="engine_operation", engine="kv", endpoint="data/dev/password"))
+    assert result.status_code == 422
+
+
+def test_durable_store_failure_prevents_engine_write(client, monkeypatch):
+    redis_config(monkeypatch)
+    calls = fake_vault(monkeypatch, operation_responses((503, {"error": "unavailable"})))
+    response = execute(client, operation_ticket(client), operation_json='{"ttl":60}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
+    assert response.status_code == 503
+    assert len(calls) == 4

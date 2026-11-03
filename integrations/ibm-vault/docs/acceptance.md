@@ -14,7 +14,7 @@ Run `.venv/bin/python -m pytest -q`. The automated suite checks:
 - Same-origin submission, explicit confirmation and bounded request bodies.
 - A caller token is sent only to the configured Vault host with the configured namespace.
 - Engine creation, existing-engine no-op and incompatible-engine rejection.
-- KV v2 creation uses `options.cas=0`; no secret read, update or delete API exists.
+- KV v2 creation uses `options.cas=0`; generic write operations cannot bypass it.
 - Vault ACL denial and upstream errors do not cause writes or leak upstream data.
 - Validation errors and receipts omit tokens and secret values.
 - Chat identities are RS256-signed, five minutes long, anonymous and have no Vault authority.
@@ -28,7 +28,7 @@ Only disposable test values are used, with root and caller tokens generated in
 memory. Vault startup output is suppressed, and token-file storage is disabled.
 The test skips if the `vault` executable is unavailable.
 
-`python scripts/validate-agent.py` validates the agent, three Python tool schemas
+`python scripts/validate-agent.py` validates the agent, five Python tool schemas
 and draft/live connection configurations using the installed IBM ADK (verified
 with 2.19.1). It does not contact IBM or verify tenant model availability.
 
@@ -61,6 +61,29 @@ IBM inference.
 9. Confirm the original website embeds the chat, displays the no-secrets notice,
    works on mobile and supports keyboard navigation and readable errors.
 
-Database, transit and PKI acceptance covers **mount enablement only**. Configuring
-database connections/roles, transit keys or certificate authorities requires a
-separate implementation and acceptance plan.
+## Expanded all-engine acceptance
+
+The real local test now mounts every supported secrets plugin listed by its Vault
+catalog (plus the built-in Database engine and KV v1). It creates a transit key,
+encrypts and decrypts disposable data, rotates the key, checks replay refusal,
+tunes lease TTLs, lists transit keys, creates KV v1 data and disables that disposable
+mount. It also creates a disposable PKI CA and retrieves its PEM certificate. These
+operations use the actual Vault mount schemas. The integration test's one-use
+claim is a test-only in-memory stand-in; Redis REST authorization and atomic NX
+claim response handling have separate HTTP-mock tests.
+
+Before production, configure a durable Redis REST store and verify two concurrent
+submissions of one plan result in at most one Vault operation. Simulate a response
+timeout: the claim must remain consumed, and the UI must require verification of
+Vault's actual result before preparing another plan. Store downtime must prevent
+the engine operation, with no fallback to process memory or local files.
+
+For each provider/Enterprise/custom engine you intend to use, verify its installed
+plugin/license, caller policy, schema inspection, JSON input validation and an
+appropriate non-production operation with actual provider credentials. The local
+test does not prove connectivity to cloud/database backends or licensed Enterprise
+plugins. Unsupported schemas and non-JSON input/query workflows fail closed.
+
+Confirm that generated credentials and plaintext appear only in the secure page's
+collapsed sensitive-result area, clearing removes the output, and neither values
+nor tokens appear in chat, receipts, logs or Redis records.

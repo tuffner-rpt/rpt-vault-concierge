@@ -6,7 +6,7 @@
 path "sys/mounts/onboard-payments" {
   capabilities = ["read", "create", "update"]
   # Only needed for engine onboarding. Remove create/update for secret-only users.
-  # Vault requires update for enabling engines; the bridge exposes no tune/delete.
+  # Vault requires update for enabling engines. This narrow example grants no delete.
 }
 
 # Create-only protection is additionally enforced with KV v2 options.cas = 0.

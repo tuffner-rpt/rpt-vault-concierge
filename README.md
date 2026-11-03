@@ -40,8 +40,11 @@ Set this website's server-side `WXO_BRIDGE_URL` to the bridge's stable HTTPS ori
 The embed URL contains no credentials. When the setting is missing or invalid, the
 page explicitly reports that IBM setup is pending and makes no IBM or Vault calls.
 
-Agent scope: KV v2 mounts and create-only KV v2 secrets; transit, database and PKI
-mount enablement only. Review links open in a new tab for explicit approval.
+Agent scope: all available mountable engine types, including licensed Enterprise
+and registered custom plugins; live-schema-based configuration, roles and secret
+operations; lease tuning and disabling. KV v2 data writes remain CAS-protected.
+Generic operations require the bridge's durable Redis REST approval store.
+Review links open in a new tab for explicit approval and typed confirmation.
 Tokens and values stay outside the chat. The new flow uses each caller's Vault
 token; it does not use this website's existing shared `VAULT_TOKEN` setting.
 

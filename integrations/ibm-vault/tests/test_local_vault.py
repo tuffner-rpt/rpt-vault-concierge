@@ -5,12 +5,16 @@ import shutil
 import socket
 import subprocess
 import time
+import base64
+import json
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 from api.index import app
+from api import index as bridge
+from fastapi import HTTPException
 
 
 @pytest.mark.skipif(not shutil.which("vault"), reason="Vault binary is not installed")
@@ -70,11 +74,59 @@ def test_real_local_vault_onboarding(monkeypatch):
                 forbidden = prepare(action="create_secret", secret_path="prod/database")
                 assert execute(forbidden, caller_token, secret_data={"password": "denied"}).status_code == 403
                 assert vault.get("/v1/onboard-integration/data/prod/database").status_code == 404
-                for engine in ["transit", "database", "pki"]:
+                available = vault.get("/v1/sys/plugins/catalog").json()["data"]
+                mountable = {item["name"] for item in available["detailed"] if item["type"] == "secret" and item.get("deprecation_status") == "supported"}
+                for engine in sorted(mountable | {"database", "kv-v1"}):
                     result = execute(prepare(engine=engine, mount=f"onboard-{engine}"), root_token)
                     assert result.status_code == 200, result.text
                     assert result.json()["status"] == "created"
-                    assert "separately" in result.json()["scope"]
+                assert {"aws", "azure", "gcp", "transit", "pki", "kv", "ssh", "totp"}.issubset(mountable)
+
+                # Redis REST behavior is covered separately with HTTP mocks. This
+                # integration exercises real Vault operations with a test-only claim.
+                claimed = set()
+                async def test_claim(_client, signed):
+                    if signed in claimed:
+                        raise HTTPException(409, "Already submitted")
+                    claimed.add(signed)
+                monkeypatch.setattr(bridge, "claim_operation", test_claim)
+
+                def operation(endpoint, payload, method="POST"):
+                    signed = prepare(action="engine_operation", engine="transit", mount="onboard-transit", endpoint=endpoint, method=method)
+                    result = execute(signed, root_token, operation_json=json.dumps(payload), confirmation_text=f"EXECUTE {method} onboard-transit/{endpoint}" if method in {"POST", "PUT", "PATCH"} else "")
+                    assert result.status_code == 200, result.text
+                    return result.json(), signed
+
+                operation("keys/demo", {"type": "aes256-gcm96"})
+                listed, _ = operation("keys", {}, method="LIST")
+                assert "demo" in listed["sensitive_result"]["data"]["keys"]
+                plaintext = base64.b64encode(b"disposable-local-test").decode()
+                encrypted, _ = operation("encrypt/demo", {"plaintext": plaintext})
+                ciphertext = encrypted["sensitive_result"]["data"]["ciphertext"]
+                decrypted, _ = operation("decrypt/demo", {"ciphertext": ciphertext})
+                assert decrypted["sensitive_result"]["data"]["plaintext"] == plaintext
+                _, rotate_plan = operation("keys/demo/rotate", {})
+                assert execute(rotate_plan, root_token, confirmation_text="EXECUTE POST onboard-transit/keys/demo/rotate").status_code == 409
+                assert vault.get("/v1/onboard-transit/keys/demo").json()["data"]["latest_version"] == 2
+
+                tune = prepare(action="tune_engine", engine="transit", mount="onboard-transit")
+                assert execute(tune, root_token, operation_json='{"default_lease_ttl":"30m","max_lease_ttl":"60m"}').status_code == 200
+                assert vault.get("/v1/sys/mounts/onboard-transit/tune").json()["data"]["max_lease_ttl"] == 3600
+
+                kv1 = prepare(action="engine_operation", engine="kv-v1", mount="onboard-kv-v1", endpoint="dev/database")
+                assert execute(kv1, root_token, operation_json='{"password":"kv1-test"}', confirmation_text="EXECUTE POST onboard-kv-v1/dev/database").status_code == 200
+                disable = prepare(action="disable_engine", engine="kv-v1", mount="onboard-kv-v1")
+                assert execute(disable, root_token, confirmation_text="DISABLE onboard-kv-v1").status_code == 200
+                assert vault.get("/v1/onboard-kv-v1/dev/database").status_code == 404
+
+                root_plan = prepare(action="engine_operation", engine="pki", mount="onboard-pki", endpoint="root/generate/internal")
+                result = execute(root_plan, root_token, operation_json='{"common_name":"disposable.test","ttl":"1h"}', confirmation_text="EXECUTE POST onboard-pki/root/generate/internal")
+                assert result.status_code == 200, result.text
+                cert_plan = prepare(action="engine_operation", engine="pki", mount="onboard-pki", endpoint="ca/pem", method="GET")
+                result = execute(cert_plan, root_token)
+                assert result.status_code == 200, result.text
+                raw = result.json()["sensitive_result"]["data"]["raw_body_base64"]
+                assert b"BEGIN CERTIFICATE" in base64.b64decode(raw)
     finally:
         proc.terminate()
         try:

@@ -28,10 +28,10 @@ export default function VaultOnboarding() {
       <section className="onboarding-workspace" aria-labelledby="onboarding-title">
         <div className="panel-kicker">IBM WATSONX ORCHESTRATE · GRANITE</div>
         <h1 id="onboarding-title">Onboard with a conversation.</h1>
-        <p className="onboarding-intro">Tell the concierge which Vault engine or secret you need. Review the proposed change and approve it using your own Vault permissions.</p>
+        <p className="onboarding-intro">Manage available Vault secrets engines, configuration, roles, and secret operations through IBM Granite. Review each operation and approve it using your own Vault permissions.</p>
         <div className="onboarding-scope" aria-label="Supported onboarding operations">
-          <span><strong>KV v2</strong>Engine mounts + new secrets</span>
-          <span><strong>Transit · Database · PKI</strong>Engine mounts only</span>
+          <span><strong>All available engine types</strong>Built-in, licensed Enterprise + custom plugins</span>
+          <span><strong>Engine-specific operations</strong>Configuration, roles, credentials + lifecycle</span>
           <span><strong>Your approval</strong>Required before Vault changes</span>
         </div>
         <p className="onboarding-privacy">Keep Vault tokens and secret values out of chat. Enter them only in the separate secure review form, opened in a new tab.</p>

@@ -1,4 +1,4 @@
-"""Import these three standalone Python tools using the Orchestrate ADK."""
+"""Import these five standalone Python tools using the Orchestrate ADK."""
 import json
 from urllib.parse import urlsplit
 
@@ -37,7 +37,7 @@ def prepare_vault_engine(engine: str, mount: str, description: str) -> str:
     """Prepare an engine mount review link without changing Vault.
 
     Args:
-        engine: One of kv-v2, transit, database, pki. Non-KV engines are mount-only.
+        engine: Mountable Vault secrets engine or registered secrets plugin name. Use kv-v1 or kv-v2 for KV version selection.
         mount: Single mount segment using the prefix returned by the catalog.
         description: Non-secret purpose of the mount, at most 240 characters.
 
@@ -59,3 +59,36 @@ def prepare_vault_secret(mount: str, secret_path: str) -> str:
         A pending plan and secure form URL for entering values outside chat.
     """
     return _call("POST", "/api/plans", {"action": "create_secret", "engine": "kv-v2", "mount": mount, "secret_path": secret_path})
+
+
+@tool(expected_credentials=CREDS)
+def prepare_vault_operation(engine: str, mount: str, method: str, endpoint: str, purpose: str) -> str:
+    """Prepare a reviewed operation for any mounted secrets engine; never accepts credential values.
+
+    Args:
+        engine: Secrets engine or registered plugin type, e.g. aws, database, transit, pki, kv-v1.
+        mount: Existing mount using the catalog's allowed prefix.
+        method: GET, LIST, POST, PUT, PATCH, or DELETE from the engine's documented API.
+        endpoint: Relative engine endpoint, e.g. config/root, roles/payments, keys/payments, creds/developer. Never include a URL, mount prefix, query, or credentials.
+        purpose: Non-secret explanation of the requested operation and its consequences.
+
+    Returns:
+        A secure review URL. The form validates the endpoint and input against Vault's live OpenAPI schema. Credentials, request JSON and outputs stay outside chat.
+    """
+    return _call("POST", "/api/plans", {"action": "engine_operation", "engine": engine, "mount": mount, "method": method, "endpoint": endpoint, "description": purpose})
+
+
+@tool(expected_credentials=CREDS)
+def prepare_vault_mount_change(engine: str, mount: str, action: str, purpose: str) -> str:
+    """Prepare reviewed lease tuning or destructive disabling of any compatible engine mount.
+
+    Args:
+        engine: Existing secrets engine or registered plugin type.
+        mount: Existing mount using the catalog's allowed prefix.
+        action: tune_engine for lease defaults and description, or disable_engine to revoke leases and remove all mount data.
+        purpose: User's non-secret reason; explicitly explain any data loss or credential revocation.
+
+    Returns:
+        A review URL. Execution requires the caller's Vault token, durable one-use approval, and typed confirmation for disabling.
+    """
+    return _call("POST", "/api/plans", {"action": action, "engine": engine, "mount": mount, "description": purpose})

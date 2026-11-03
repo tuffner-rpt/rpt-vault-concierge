@@ -5,6 +5,22 @@ history.replaceState(null, "", location.pathname);
 let plan;
 let busy = false;
 
+$("inspect-engine").addEventListener("click", async () => {
+  $("inspect-engine").disabled = true;
+  try {
+    const info = await call("/api/inspect", { ticket, vault_token: $("vault-token").value });
+    $("engine-info").textContent = JSON.stringify(info, null, 2); $("engine-info").hidden = false;
+  } catch (error) { $("status").textContent = error.message; }
+  finally { $("inspect-engine").disabled = false; }
+});
+function clearSensitive() {
+  $("sensitive-output").textContent = ""; $("sensitive-result").hidden = true;
+  $("vault-token").value = ""; $("operation-json").value = "{}";
+  for (const input of $("fields").querySelectorAll('input[type="password"]')) input.value = "";
+}
+$("clear-result").addEventListener("click", clearSensitive);
+window.addEventListener("pagehide", clearSensitive);
+
 async function call(path, payload) {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), cache: "no-store", credentials: "same-origin" });
   const data = await response.json();
@@ -44,15 +60,18 @@ $("execute").addEventListener("submit", async (event) => {
   }
   if (plan.action === "create_secret" && !Object.keys(secretData).length) { $("status").textContent = "Add at least one secret field."; return; }
   busy = true; $("submit").disabled = true; $("status").textContent = "Submitting to Vault…";
-  const payload = { ticket, vault_token: $("vault-token").value, confirmed: $("confirmed").checked, secret_data: secretData };
+  const payload = { ticket, vault_token: $("vault-token").value, confirmed: $("confirmed").checked, secret_data: secretData, operation_json: $("operation-json").value, confirmation_text: $("confirmation-text").value };
   try {
     const result = await call("/api/execute", payload);
-    $("status").textContent = result.status === "already_exists" ? "The compatible engine already exists. No changes were made." : "Created in Vault.";
-    $("receipt").textContent = JSON.stringify(result, null, 2); $("receipt").hidden = false; $("execute").hidden = true; ticket = null;
+    $("status").textContent = result.status === "already_exists" ? "The compatible engine already exists. No changes were made." : result.status === "completed" ? "Vault completed the reviewed operation." : "Created in Vault.";
+    const { sensitive_result: sensitive, ...receipt } = result;
+    $("receipt").textContent = JSON.stringify(receipt, null, 2); $("receipt").hidden = false; $("execute").hidden = true; ticket = null;
+    if (sensitive && Object.keys(sensitive).length) { $("sensitive-output").textContent = JSON.stringify(sensitive, null, 2); $("sensitive-result").hidden = false; }
   } catch (error) {
     $("status").textContent = error.message + " Credentials have been cleared. Verify the result in Vault before retrying.";
   } finally {
     payload.vault_token = "";
+    payload.operation_json = ""; $("operation-json").value = "{}"; $("confirmation-text").value = "";
     for (const key of Object.keys(secretData)) delete secretData[key];
     $("vault-token").value = "";
     for (const input of $("fields").querySelectorAll('input[type="password"]')) input.value = "";
@@ -64,7 +83,8 @@ $("execute").addEventListener("submit", async (event) => {
   if (!ticket) { $("status").textContent = "Open the review link provided by your Vault Concierge agent to begin."; return; }
   try {
     const result = await call("/api/preview", { ticket }); plan = result.plan;
-    const fields = { Operation: plan.action === "enable_engine" ? "Enable secrets engine" : "Create KV v2 secret", "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Description: plan.description };
+    const names = { enable_engine: "Enable secrets engine", create_secret: "Create KV v2 secret", engine_operation: "Run engine-specific operation", tune_engine: "Tune engine lease defaults", disable_engine: "Disable engine and remove its data" };
+    const fields = { Operation: names[plan.action], "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Endpoint: plan.endpoint, "HTTP method": plan.action === "engine_operation" ? plan.method : "", Description: plan.description };
     for (const [label, value] of Object.entries(fields)) {
       if (!value) continue;
       const dt = document.createElement("dt"); dt.textContent = label;
@@ -75,5 +95,11 @@ $("execute").addEventListener("submit", async (event) => {
     $("status").textContent = "Pending your approval. This link expires 10 minutes after creation.";
     $("execute").hidden = false;
     if (plan.action === "create_secret") { $("secret-fields").hidden = false; addField(); }
+    if (["engine_operation", "tune_engine"].includes(plan.action)) $("operation-fields").hidden = false;
+    if (result.confirmation_phrase) {
+      $("destructive-confirmation").hidden = false; $("confirmation-phrase").textContent = result.confirmation_phrase; $("confirmation-text").required = true;
+    }
+    if (plan.action === "disable_engine") $("submit").textContent = "Confirm & disable engine";
+    else if (plan.action !== "enable_engine" && plan.action !== "create_secret") $("submit").textContent = "Confirm & execute operation";
   } catch (error) { $("status").textContent = error.message; }
 })();

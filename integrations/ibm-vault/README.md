@@ -1,16 +1,18 @@
 # RPT Vault Concierge — IBM Granite + watsonx Orchestrate
 
-This repository contains an Orchestrate native agent, three IBM ADK Python tools,
+This repository contains an Orchestrate native agent, five IBM ADK Python tools,
 a Vercel-compatible FastAPI bridge, and an embeddable IBM chat page. It is designed
 to connect to the existing `rpt-vault-concierge-demo` website without replacing it.
 
 **Current status:** implementation and local automated verification are available.
 IBM ADK 2.19.1 validates the agent, tools and connection schemas. An isolated local
-Vault v2.1.2 test verifies actual engine creation, scoped secret writes, and overwrite
-and ACL refusal. The user's IBM tenant, actual Granite model availability, target
+Vault v2.1.2 test verifies all locally supported mountable plugins, scoped writes,
+transit cryptography and rotation, lease tuning, engine disable, replay refusal and ACLs. The user's IBM tenant, actual Granite model availability, target
 Vault connectivity, and deployment to the supplied website have not been verified.
 The parent Next.js website includes `/vault-onboarding` for embedding this bridge.
-Configure its `WXO_BRIDGE_URL` after deploying the bridge and IBM agent.
+The target IBM instance is recorded in `watsonx/instance.json`; authentication and
+live deployment remain pending. Configure the website's `WXO_BRIDGE_URL` after
+successfully deploying and accepting the bridge and IBM agent.
 
 ## Behavior
 
@@ -21,8 +23,9 @@ Configure its `WXO_BRIDGE_URL` after deploying the bridge and IBM agent.
 4. The user supplies their own short-lived scoped Vault token and, for secrets,
    values in the separate form, then explicitly confirms.
 5. The server executes against Vault using that caller token and returns a receipt
-   containing paths and status, never values. The application does not persist
-   tokens or secret values. The browser clears credential fields after submission.
+   containing paths and status. Engine-specific sensitive results are revealed only
+   in a separate secure-form area; they never enter chat. The application does not
+   persist tokens, payloads or secret values. Input fields clear after submission.
 
 The Orchestrate identity is an anonymous planner identity, **not** Vault authority.
 The only shared tool credential can prepare plans; it cannot execute them. The
@@ -32,18 +35,23 @@ put confidential data in descriptions or path names; those remain in chat histor
 
 | Capability | Implemented scope |
 | --- | --- |
-| KV v2 | Enable mount; create secrets on an existing mount |
-| Transit | Enable mount only; no keys or encryption operations |
-| Database | Enable mount only; no connections, roles or credentials |
-| PKI | Enable mount only; no CA, certificate or issuance role configuration |
-| Existing secrets | Never read or overwrite; KV v2 writes use `cas=0` |
-| Existing compatible engine | No-op; incompatible engines are rejected |
-| Updates/deletion/policy changes | No exposed operations |
+| Engine types | Any available mountable secrets plugin; built-in, Enterprise and registered custom plugins |
+| KV v2 data writes | Atomic create-only CAS; generic API cannot bypass this |
+| Engine-specific APIs | Configuration, roles, cryptography, issuance, credentials, reads, listing, rotation, revocation and deletion when published in the live mount schema |
+| Mount lifecycle | Enable, compatible-mount no-op, lease defaults/description tuning and disable |
+| Approval | Exact method/path review; typed mutation/destruction confirmation; caller ACLs |
+| Replay prevention | Atomic Redis one-use claim for generic operations, tuning and disabling |
 
-The default allowed mount prefix is `onboard-`. Customize `ALLOWED_MOUNT_PREFIX`
-and each user's Vault policy for the environment. [Example ACL](docs/vault-policy.hcl).
-Plans can be replayed within their validity period; safety comes from compatible
-mount no-op behavior and Vault's atomic KV v2 create-only CAS, not a single-use store.
+The default allowed mount prefix remains `onboard-`. All engine types does not
+imply access to all paths or an administrator identity. Vault-managed System,
+Identity and Cubbyhole are special existing mounts, not manually enabled plugins.
+Enterprise/custom availability depends on the installation and license.
+
+Read [all-engine management](docs/all-engines.md) for exact scope, limitations and
+single-use storage setup. New generic operations require a durable Redis REST
+store (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`); they fail closed
+without it. Engine schemas and actual Vault ACLs remain authoritative. The simple
+compatible-engine and CAS-protected creation flows remain safely repeatable.
 
 ## Run locally
 
@@ -79,8 +87,8 @@ dependency. Never place an IBM API key, private signing key or Vault token in HT
 ```sh
 pip install ibm-watsonx-orchestrate==2.19.1
 python scripts/validate-agent.py
-orchestrate env add --name rpt --url YOUR_ORCHESTRATE_INSTANCE_URL
-orchestrate env activate rpt
+orchestrate env add --name rpt-vault --url https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/49049ef8-a58a-4d39-b778-23fb47342d35
+orchestrate env activate rpt-vault
 orchestrate models list
 ```
 
