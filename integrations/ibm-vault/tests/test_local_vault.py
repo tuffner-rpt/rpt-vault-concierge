@@ -19,6 +19,13 @@ from fastapi import HTTPException
 
 @pytest.mark.skipif(not shutil.which("vault"), reason="Vault binary is not installed")
 def test_real_local_vault_onboarding(monkeypatch):
+    reviews = {}
+    async def save_review(review_id, ticket):
+        reviews[review_id] = ticket
+    async def resolve_review(review_id):
+        return reviews[review_id]
+    monkeypatch.setattr(bridge, "store_review", save_review)
+    monkeypatch.setattr(bridge, "resolve_review", resolve_review)
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -47,7 +54,10 @@ def test_real_local_vault_onboarding(monkeypatch):
                 def prepare(**changes):
                     response = client.post("/api/plans", headers={"x-api-key": bridge_key}, json={"action": "enable_engine", "engine": "kv-v2", "mount": "onboard-integration", **changes})
                     assert response.status_code == 200, response.text
-                    return parse_qs(urlsplit(response.json()["review_url"]).fragment)["plan"][0]
+                    review_id = parse_qs(urlsplit(response.json()["review_url"]).fragment)["review"][0]
+                    resolved = client.post("/api/resolve", headers={"Origin": origin}, json={"review_id": review_id})
+                    assert resolved.status_code == 200
+                    return resolved.json()["ticket"]
                 def execute(ticket, token, **changes):
                     return client.post("/api/execute", headers={"Origin": origin}, json={"ticket": ticket, "vault_token": token, "confirmed": True, **changes})
                 engine_plan = prepare()

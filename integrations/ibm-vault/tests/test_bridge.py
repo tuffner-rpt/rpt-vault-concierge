@@ -18,6 +18,15 @@ HEADERS = {"Origin": ORIGIN}
 
 @pytest.fixture(autouse=True)
 def config(monkeypatch):
+    reviews = {}
+    async def save(review_id, signed):
+        reviews[review_id] = signed
+    async def resolve(review_id):
+        if review_id not in reviews:
+            raise bridge.HTTPException(400, "Invalid or expired review link")
+        return reviews[review_id]
+    monkeypatch.setattr(bridge, "store_review", save)
+    monkeypatch.setattr(bridge, "resolve_review", resolve)
     for key, value in {"APP_ORIGIN": ORIGIN, "VAULT_ADDR": "https://vault.example.com:8200", "VAULT_NAMESPACE": "engineering", "PLAN_SIGNING_KEY": "s" * 64, "WXO_BRIDGE_API_KEY": KEY, "ALLOWED_MOUNT_PREFIX": "onboard-"}.items():
         monkeypatch.setenv(key, value)
 
@@ -35,7 +44,10 @@ def plan_input(**changes):
 def ticket(client, **changes):
     result = client.post("/api/plans", headers={"x-api-key": KEY}, json=plan_input(**changes))
     assert result.status_code == 200, result.text
-    return parse_qs(urlsplit(result.json()["review_url"]).fragment)["plan"][0]
+    review_id = parse_qs(urlsplit(result.json()["review_url"]).fragment)["review"][0]
+    resolved = client.post("/api/resolve", headers=HEADERS, json={"review_id": review_id})
+    assert resolved.status_code == 200
+    return resolved.json()["ticket"]
 
 
 def fake_vault(monkeypatch, responses):
@@ -386,3 +398,9 @@ def test_secret_review_grants_create_only_at_one_path(client):
     assert '"update"' not in policy
     assert '"delete"' not in policy
     assert '*' not in policy
+
+
+def test_review_lookup_requires_same_origin_and_valid_id(client):
+    assert client.post("/api/resolve", json={"review_id": "a" * 22}).status_code == 403
+    assert client.post("/api/resolve", headers=HEADERS, json={"review_id": "a" * 22}).status_code == 400
+    assert client.post("/api/resolve", headers=HEADERS, json={"review_id": "../escape"}).status_code == 422

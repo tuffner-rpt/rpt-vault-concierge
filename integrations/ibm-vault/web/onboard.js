@@ -1,6 +1,8 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-let ticket = new URLSearchParams(location.hash.slice(1)).get("plan");
+const fragment = new URLSearchParams(location.hash.slice(1));
+let ticket = fragment.get("plan");
+let reviewId = fragment.get("review");
 history.replaceState(null, "", location.pathname);
 let plan;
 let busy = false;
@@ -80,8 +82,9 @@ $("execute").addEventListener("submit", async (event) => {
 });
 
 (async () => {
-  if (!ticket) { $("status").textContent = "Open the review link provided by your Vault Concierge agent to begin."; return; }
+  if (!ticket && !reviewId) { $("status").textContent = "Open the review link provided by your Vault Concierge agent to begin."; return; }
   try {
+    if (reviewId) { ticket = (await call("/api/resolve", { review_id: reviewId })).ticket; reviewId = null; }
     const result = await call("/api/preview", { ticket }); plan = result.plan;
     const names = { enable_engine: "Enable secrets engine", create_secret: "Create KV v2 secret", engine_operation: "Run engine-specific operation", tune_engine: "Tune engine lease defaults", disable_engine: "Disable engine and remove its data" };
     const fields = { Operation: names[plan.action], "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Endpoint: plan.endpoint, "HTTP method": plan.action === "engine_operation" ? plan.method : "", Description: plan.description };

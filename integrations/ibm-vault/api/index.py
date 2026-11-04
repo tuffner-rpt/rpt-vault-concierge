@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import time
 import uuid
 from pathlib import Path
@@ -127,13 +128,15 @@ def encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
-def issue_plan(plan: Plan) -> dict:
+async def issue_plan(plan: Plan) -> dict:
     plan.check_action()
     body = {"plan": plan.model_dump(), "exp": int(time.time()) + 600, "id": str(uuid.uuid4()), "aud": trusted_origin("APP_ORIGIN")}
     data = encode(json.dumps(body, separators=(",", ":"), sort_keys=True).encode())
     signature = encode(hmac.new(signing_key(), data.encode(), hashlib.sha256).digest())
     ticket = f"{data}.{signature}"
-    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#plan={ticket}", "status": "awaiting_browser_review", "note": "Nothing has been changed in Vault. Review and confirm in the secure form."}
+    review_id = secrets.token_urlsafe(16)
+    await store_review(review_id, ticket)
+    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#review={review_id}", "status": "awaiting_browser_review", "note": "Nothing has been changed in Vault. Review and confirm in the secure form."}
 
 
 def read_plan(ticket: str) -> Plan:
@@ -221,9 +224,48 @@ def catalog():
 
 
 @app.post("/api/plans")
-def prepare(plan: Plan, request: Request):
+async def prepare(plan: Plan, request: Request):
     tool_authorized(request)
-    return issue_plan(plan)
+    return await issue_plan(plan)
+
+
+async def review_store(command: list):
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False, trust_env=False) as client:
+            response = await client.post(trusted_origin("UPSTASH_REDIS_REST_URL"), headers={"Authorization": "Bearer " + required("UPSTASH_REDIS_REST_TOKEN")}, json=command)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("error"):
+            raise ValueError()
+        return data.get("result")
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(503, "Secure review link storage is unavailable. No Vault change was made.") from None
+
+
+async def store_review(review_id: str, ticket: str):
+    result = await review_store(["SET", "rpt-vault:review:" + review_id, ticket, "EX", "600", "NX"])
+    if result != "OK":
+        raise HTTPException(503, "Secure review link could not be prepared. No Vault change was made.")
+
+
+async def resolve_review(review_id: str) -> str:
+    ticket = await review_store(["GET", "rpt-vault:review:" + review_id])
+    if not isinstance(ticket, str):
+        raise HTTPException(400, "Invalid or expired review link. Ask the agent for a new one.")
+    return ticket
+
+
+class ReviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    review_id: str = Field(pattern=r"^[A-Za-z0-9_-]{22}$")
+
+
+@app.post("/api/resolve")
+async def resolve(body: ReviewInput, request: Request):
+    same_origin(request)
+    ticket = await resolve_review(body.review_id)
+    read_plan(ticket)
+    return {"ticket": ticket}
 
 
 def access_requirements(plan: Plan) -> dict:

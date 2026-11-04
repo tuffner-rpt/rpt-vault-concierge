@@ -38,8 +38,10 @@ The website source and agent package are in
 
 The Orchestrate identity is an anonymous planner identity, **not** Vault authority.
 The only shared tool credential can prepare plans; it cannot execute them. The
-backend has no administrator Vault token. Plan links contain metadata, expire in
-10 minutes, and are held in a URL fragment that is removed on page load. Do not
+backend has no administrator Vault token. Review links contain an opaque random reference, expire in
+10 minutes, and use a URL fragment removed on page load. The signed plan metadata
+is stored in Redis for up to ten minutes; Vault tokens and secret values are never
+stored there. Short links avoid model transcription errors in long signed URLs. Do not
 put confidential data in descriptions or path names; those remain in chat history.
 
 | Capability | Implemented scope |
@@ -57,7 +59,7 @@ Identity and Cubbyhole are special existing mounts, not manually enabled plugins
 Enterprise/custom availability depends on the installation and license.
 
 Read [all-engine management](docs/all-engines.md) for exact scope, limitations and
-single-use storage setup. New generic operations require a durable Redis REST
+single-use storage setup. All review links require Redis; new generic operations also require a durable Redis REST
 store (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`); they fail closed
 without it. Engine schemas and actual Vault ACLs remain authoritative. The simple
 compatible-engine and CAS-protected creation flows remain safely repeatable.
