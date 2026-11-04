@@ -4,15 +4,24 @@ This repository contains an Orchestrate native agent, five IBM ADK Python tools,
 a Vercel-compatible FastAPI bridge, and an embeddable IBM chat page. It is designed
 to connect to the existing `rpt-vault-concierge-demo` website without replacing it.
 
-**Current status:** implementation and local automated verification are available.
-IBM ADK 2.19.1 validates the agent, tools and connection schemas. An isolated local
-Vault v2.1.2 test verifies all locally supported mountable plugins, scoped writes,
-transit cryptography and rotation, lease tuning, engine disable, replay refusal and ACLs. The user's IBM tenant, actual Granite model availability, target
-Vault connectivity, and deployment to the supplied website have not been verified.
-The parent Next.js website includes `/vault-onboarding` for embedding this bridge.
-The target IBM instance is recorded in `watsonx/instance.json`; authentication and
-live deployment remain pending. Configure the website's `WXO_BRIDGE_URL` after
-successfully deploying and accepting the bridge and IBM agent.
+**Current status:** deployed to the new Orchestrate SaaS instance using MCSP v2.
+The agent uses `watsonx/ibm/granite-4-h-small`; all five tools and the draft/live
+bridge connection are deployed. Browser verification covers signed chat identity,
+a live Granite tool call, a signed review link, and its secure review form showing
+the configured Vault address and namespace `admin`. No target Vault mutations or
+authenticated target Vault access have been verified. Each user supplies their own
+scoped Vault token in the review form.
+
+The website is deployed at
+https://rpt-vault-concierge-demo-beryl.vercel.app/vault-onboarding.
+Vercel deployment protection remains enabled. The separate bridge is
+https://rpt-vault-orchestrate-bridge.vercel.app. Free Upstash approval storage is
+connected with automatic paid upgrades disabled; a live atomic claim/replay test
+passed. The prior isolated Vault tests cover mountable local plugins, scoped writes,
+transit cryptography/rotation, tuning, disable and ACL rejection.
+
+The website source and agent package are in
+`https://github.com/tuffner-rpt/rpt-vault-concierge/pull/2` (draft).
 
 ## Behavior
 
@@ -87,8 +96,8 @@ dependency. Never place an IBM API key, private signing key or Vault token in HT
 ```sh
 pip install ibm-watsonx-orchestrate==2.19.1
 python scripts/validate-agent.py
-orchestrate env add --name rpt-vault --url https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/49049ef8-a58a-4d39-b778-23fb47342d35
-orchestrate env activate rpt-vault
+orchestrate env add --name rpt-vault-updated --url https://api.dl.watson-orchestrate.ibm.com/instances/20261104-0014-2170-40e0-623668130968
+orchestrate env activate rpt-vault-updated
 orchestrate models list
 ```
 

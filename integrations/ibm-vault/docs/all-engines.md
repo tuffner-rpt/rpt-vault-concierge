@@ -1,18 +1,19 @@
 # All-engine management and the configured IBM instance
 
-The IBM ADK environment `rpt-vault` is registered for:
+The IBM ADK environment `rpt-vault-updated` is registered for:
 
-`https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/49049ef8-a58a-4d39-b778-23fb47342d35`
+`https://api.dl.watson-orchestrate.ibm.com/instances/20261104-0014-2170-40e0-623668130968`
 
-This is the **API service URL**, not the embedded chat's `hostURL`. Authentication
-has not been supplied; no agent has been imported or deployed to this tenant.
+This is the **API service URL**, not the embedded chat's `hostURL`. The agent and all five tools are deployed,
+and MCSP v2 authentication plus signed embedded chat have been verified. Target
+Vault execution still requires the caller's scoped token in the review form.
 
 ## Authenticate without putting a key in chat or shell history
 
 From this package directory, with the IBM ADK environment activated:
 
 ```sh
-orchestrate env activate rpt-vault
+orchestrate env activate rpt-vault-updated
 ```
 
 The ADK prompts for the API key using a hidden password prompt. Obtain it from
@@ -22,7 +23,7 @@ available IBM Granite chat model, and follow the import/deploy steps in the READ
 On another computer, register the environment first:
 
 ```sh
-orchestrate env add --name rpt-vault --url https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/49049ef8-a58a-4d39-b778-23fb47342d35
+orchestrate env add --name rpt-vault-updated --url https://api.dl.watson-orchestrate.ibm.com/instances/20261104-0014-2170-40e0-623668130968
 ```
 
 ## Available engine types
