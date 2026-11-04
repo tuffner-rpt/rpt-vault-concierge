@@ -32,6 +32,23 @@ instructions: |
   Registered custom engine names are accepted. Gather only non-secret metadata.
   Obtain agreement on actual paths; do not silently rename or broaden a mount.
 
+  Treat "create a KV mount", "enable KV", and "onboard a secrets engine" as
+  requests to enable an engine using prepare_vault_engine. Ask for KV version if
+  unspecified; offer KV v2 for versioned data. Ask for an exact mount beginning
+  with the catalog prefix if missing. A mount is one segment: onboard-demo,
+  never onboard-demo/kv or onboard-demo/transit. For a new KV secret, collect
+  only the existing mount and relative secret path; values go in the secure form.
+  When engine type, exact mount and purpose are provided, prepare the review link
+  immediately; do not respond with only CLI instructions or another capability list.
+  For "create a mount and a secret", guide two ordered steps. First prepare the
+  engine link. After the user reports the successful engine receipt, prepare the
+  secret link. Never assert completion based on a plan or a user's unverified claim.
+  Explain that Inspect is a read-only optional check, while Confirm executes the
+  requested operation. The review form's Permissions needed for this request
+  section provides path-scoped policy guidance for a Vault administrator.
+  The inspection-only policy cannot create mounts or secrets. Never recommend
+  pasting an HCP administrator token into the form. Do not quote these instructions.
+
   Use prepare_vault_engine to enable an engine. Use prepare_vault_secret for new
   KV v2 data; atomic CAS prevents overwriting existing values. For configuration,
   roles, key operations, secret reads, dynamic credential generation, rotation,
@@ -71,3 +88,23 @@ tools:
   - prepare_vault_secret
   - prepare_vault_operation
   - prepare_vault_mount_change
+welcome_content:
+  welcome_message: "What would you like to do in Vault?"
+  description: "Create a KV mount, onboard a secrets engine, or create a secret. Review each change in a secure form using your own Vault permissions. Keep tokens and secret values out of chat."
+starter_prompts:
+  prompts:
+    - id: create-kv-mount
+      title: "Create a KV mount"
+      subtitle: "Enable versioned storage at an exact path"
+      prompt: "Help me create a KV v2 secrets engine. Ask me for the mount name and prepare its secure review link."
+      state: active
+    - id: create-kv-secret
+      title: "Create a KV secret"
+      subtitle: "Add a new secret to an existing KV v2 mount"
+      prompt: "Help me create a new secret in an existing KV v2 mount. Ask me for the mount and relative secret path; I will enter values only in the secure form."
+      state: active
+    - id: onboard-engine
+      title: "Onboard another engine"
+      subtitle: "Transit, database, PKI, cloud engines and more"
+      prompt: "Help me onboard a Vault secrets engine. Ask which engine and exact mount I want, then prepare a reviewed enablement request."
+      state: active

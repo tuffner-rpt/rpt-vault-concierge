@@ -226,11 +226,35 @@ def prepare(plan: Plan, request: Request):
     return issue_plan(plan)
 
 
+def access_requirements(plan: Plan) -> dict:
+    """Describe exact request ACLs; never installs a policy or issues a token."""
+    permissions = {f"sys/mounts/{plan.mount}": ["read"]}
+    if plan.action == "enable_engine":
+        permissions[f"sys/mounts/{plan.mount}"] = ["read", "create", "update", "sudo"]
+        permissions["sys/plugins/catalog"] = ["read"]
+    elif plan.action == "create_secret":
+        permissions[f"{plan.mount}/data/{plan.secret_path}"] = ["create"]
+    elif plan.action == "engine_operation":
+        permissions[plan.mount] = ["read"]
+        permissions[f"{plan.mount}/{plan.endpoint}"] = [{"GET": "read", "LIST": "list", "POST": "update", "PUT": "update", "PATCH": "patch", "DELETE": "delete"}[plan.method]]
+        if plan.method in {"POST", "PUT"}:
+            permissions[f"{plan.mount}/{plan.endpoint}"].insert(0, "create")
+    elif plan.action == "tune_engine":
+        permissions[plan.mount] = ["read"]
+        permissions[f"sys/mounts/{plan.mount}/tune"] = ["read", "update", "sudo"]
+    elif plan.action == "disable_engine":
+        permissions[plan.mount] = ["read"]
+        permissions[f"sys/mounts/{plan.mount}"] = ["read", "delete", "sudo"]
+    policy = "\n\n".join(f"path {json.dumps(path)} {{\n  capabilities = {json.dumps(caps)}\n}}" for path, caps in permissions.items())
+    return {"policy_hcl": policy, "namespace": os.getenv("VAULT_NAMESPACE", ""),
+            "note": "A Vault administrator must review and attach these request-specific permissions to a short-lived token in this namespace. Inspect does not issue tokens or grant access. Engine plugins can require additional permissions; provider configuration and licenses are separate."}
+
+
 @app.post("/api/preview")
 def preview(body: TicketInput, request: Request):
     same_origin(request)
     plan = read_plan(body.ticket)
-    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan)}
+    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan)}
 
 
 async def vault_request(client, method, path, token, payload=None, allow_missing=False):

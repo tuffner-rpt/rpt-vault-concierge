@@ -93,6 +93,12 @@ $("execute").addEventListener("submit", async (event) => {
     }
     $("summary").hidden = false; $("scope").textContent = result.scope; $("scope").hidden = false;
     $("status").textContent = "Pending your approval. This link expires 10 minutes after creation.";
+    if (result.access_requirements) {
+      $("access-note").textContent = result.access_requirements.note;
+      $("access-policy").textContent = result.access_requirements.policy_hcl;
+      $("access-help").hidden = false;
+    }
+    if (plan.action === "create_secret") $("inspect-engine").hidden = true;
     $("execute").hidden = false;
     if (plan.action === "create_secret") { $("secret-fields").hidden = false; addField(); }
     if (["engine_operation", "tune_engine"].includes(plan.action)) $("operation-fields").hidden = false;

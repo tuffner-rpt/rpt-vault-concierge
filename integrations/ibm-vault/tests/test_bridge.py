@@ -364,3 +364,25 @@ def test_catalog_is_not_live_vault_inventory(client, monkeypatch):
         assert engine["vault_availability"] == "unverified"
         assert "capability" in engine
         assert "ready" not in engine
+
+
+def test_mount_review_shows_exact_scoped_permissions(client):
+    signed = ticket(client, mount="onboard-payments")
+    result = client.post("/api/preview", headers=HEADERS, json={"ticket": signed})
+    policy = result.json()["access_requirements"]["policy_hcl"]
+    assert 'path "sys/mounts/onboard-payments"' in policy
+    assert 'path "sys/plugins/catalog"' in policy
+    assert '"update"' in policy
+    assert '"delete"' not in policy
+    assert '*' not in policy
+
+
+def test_secret_review_grants_create_only_at_one_path(client):
+    signed = ticket(client, action="create_secret", secret_path="dev/database")
+    result = client.post("/api/preview", headers=HEADERS, json={"ticket": signed})
+    policy = result.json()["access_requirements"]["policy_hcl"]
+    assert 'path "onboard-payments/data/dev/database"' in policy
+    assert 'capabilities = ["create"]' in policy
+    assert '"update"' not in policy
+    assert '"delete"' not in policy
+    assert '*' not in policy
