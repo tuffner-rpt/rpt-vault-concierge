@@ -18,7 +18,7 @@ export function FloatingWatsonChat() {
     <>
       <dialog ref={panel} id="floating-watson-chat" className="floating-chat-panel" aria-labelledby="floating-chat-title" onClose={() => { setOpen(false); launcher.current?.focus(); }}>
         <header className="floating-chat-header">
-          <div><span>IBM WATSONX ORCHESTRATE</span><h2 id="floating-chat-title">Vault concierge · IBM Granite</h2></div>
+          <h2 id="floating-chat-title">RPT Vault Developer Concierge</h2>
           <button type="button" autoFocus onClick={() => panel.current?.close()} aria-label="Minimize IBM chat">−</button>
         </header>
         {initialized ? <iframe src="/vault-onboarding/chat" title="IBM Granite Vault onboarding assistant" referrerPolicy="no-referrer" /> : null}
