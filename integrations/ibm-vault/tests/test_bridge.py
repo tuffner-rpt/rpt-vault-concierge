@@ -18,6 +18,7 @@ HEADERS = {"Origin": ORIGIN}
 
 @pytest.fixture(autouse=True)
 def config(monkeypatch):
+    monkeypatch.setattr(bridge.admin_review, "enabled", lambda: False)
     reviews = {}
     async def save(review_id, signed):
         reviews[review_id] = signed

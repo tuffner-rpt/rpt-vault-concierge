@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 @pytest.mark.skipif(not shutil.which("vault"), reason="Vault binary is not installed")
 def test_real_local_vault_onboarding(monkeypatch):
+    monkeypatch.setattr(bridge.admin_review, "enabled", lambda: False)
     reviews = {}
     async def save_review(review_id, ticket):
         reviews[review_id] = ticket
@@ -153,6 +154,31 @@ def test_real_local_vault_onboarding(monkeypatch):
                 assert result.status_code == 200, result.text
                 raw = result.json()["sensitive_result"]["data"]["raw_body_base64"]
                 assert b"BEGIN CERTIFICATE" in base64.b64decode(raw)
+
+                # Real Vault identity check, queue approval, and duplicate protection.
+                from admin_store import MemoryReviewStore
+                monkeypatch.setattr(bridge.admin_review, "enabled", lambda: True)
+                monkeypatch.setattr(bridge, "review_store", MemoryReviewStore())
+                login = client.post("/api/admin/login", headers={"Origin": origin}, json={"vault_token": root_token})
+                assert login.status_code == 200, login.text
+                # The test client's HTTP base requires explicit cookie forwarding; production uses HTTPS.
+                admin_cookie = login.cookies.get("rpt_vault_admin")
+                client.cookies.set("rpt_vault_admin", admin_cookie)
+                new_plan = prepare(mount="onboard-reviewed")
+                request_id = bridge.admin_review.ticket_id(new_plan)
+                queue = client.get("/api/admin/requests")
+                assert queue.status_code == 200, queue.text
+                assert queue.json()["requests"][0]["status"] == "pending"
+                reviewed_policy = bridge.access_requirements(bridge.read_plan(new_plan))["policy_hcl"]
+                assert vault.put("/v1/sys/policies/acl/rpt-reviewed", json={"policy": reviewed_policy}).status_code == 204
+                reviewed_token = vault.post("/v1/auth/token/create", json={"policies": ["rpt-reviewed"], "no_default_policy": True, "ttl": "5m"}).json()["auth"]["client_token"]
+                approved = execute(new_plan, reviewed_token)
+                assert approved.status_code == 200, approved.text
+                assert execute(new_plan, reviewed_token).status_code == 409
+                queued_record = client.get("/api/admin/requests").json()["requests"][0]
+                assert queued_record["id"] == request_id and queued_record["status"] == "completed"
+                assert vault.get("/v1/sys/mounts/onboard-reviewed").status_code == 200
+
     finally:
         proc.terminate()
         try:

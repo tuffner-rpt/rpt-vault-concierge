@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review & approve · RPT Vault</title><link rel="stylesheet" href="/assets/admin.css"><script src="/assets/admin.js" defer></script></head>
+<body>
+<header><a id="brand-link" href="/chat"><span class="brand-mark">RPT</span> RPT Vault <strong>Developer Concierge</strong></a><span class="header-label">ADMIN REVIEW</span></header>
+<div class="workspace"><aside class="sidebar"><div class="side-label">WORKSPACE</div><a id="catalog-link" href="/chat">⌂ &nbsp; Secret catalog</a><a id="chat-link" href="/chat">✦ &nbsp; IBM Granite chat</a><a href="/admin" class="active">✓ &nbsp; Review & approve</a><div class="side-note"><strong>A conversation.<br>A reviewed change.</strong><p>Your agent prepares the request. You authorize the change with your own Vault permissions.</p></div></aside>
+<main>
+<div class="eyebrow">VAULT ADMINISTRATION</div><h1>A conversation.<br>A reviewed change.</h1><p class="intro">Your agent prepares the request. You authorize the change with your own Vault permissions.</p>
+<p id="status" role="status" aria-live="polite"></p>
+<section id="login-panel" class="card login-card"><span class="tag">ADMINISTRATOR SIGN-IN</span><h2>Review the queue with your Vault identity.</h2><p>Use a Vault token carrying an approved administrator policy. Approved policies: <code id="allowed-policies">configured by your platform team</code>. Your sign-in token is checked against Vault, then discarded. The admin session lasts up to 15 minutes.</p><p id="vault-target" class="hint"></p><form id="login-form" autocomplete="off"><label for="admin-token">Vault administrator token</label><input id="admin-token" type="password" required autocomplete="off" spellcheck="false" maxlength="4096"><button id="login-button" type="submit">Sign in to review queue <span>→</span></button></form><p class="hint">A separate scoped execution token is entered for each approved change. Tokens and secret values are never saved in this queue or sent to the chatbot.</p></section>
+<section id="queue-panel" hidden>
+<div class="queue-toolbar"><div><h2>Requests awaiting your decision</h2><p id="identity" class="hint"></p></div><div><button id="refresh" class="secondary">Refresh</button><button id="logout" class="secondary">Sign out</button></div></div>
+<div class="stats"><div><strong id="pending-count">0</strong><span>Pending on this page</span></div><div><strong id="completed-count">0</strong><span>Completed on this page</span></div><div><strong id="attention-count">0</strong><span>Need verification on this page</span></div></div>
+<div class="filters" role="group" aria-label="Filter requests"><button data-filter="pending" class="selected">Pending</button><button data-filter="all">All requests</button><button data-filter="completed">Completed</button><button data-filter="needs_attention">Needs attention</button></div>
+<p class="hint">Request metadata and outcome summaries are retained for seven days. Requester identity is not verified by anonymous chat. Approving a request opens its secure form; no operation runs until you submit the token and explicit confirmation there.</p>
+<div id="requests"></div><p id="empty" class="empty" hidden>No requests in this view. New requests prepared in IBM Granite chat will appear here.</p>
+<div class="pagination"><button id="previous" class="secondary" disabled>← Previous</button><span id="page-label"></span><button id="next" class="secondary" disabled>Next →</button></div>
+</section>
+</main></div></body></html>

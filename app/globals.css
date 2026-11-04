@@ -116,3 +116,10 @@ footer { display:flex; justify-content:space-between; margin-top:32px; padding-t
 .onboarding-unavailable p { margin:14px auto; max-width:540px; color:var(--muted); font-size:13px; line-height:1.7; }
 .onboarding-back:focus-visible,.watsonx-banner:focus-visible { outline:3px solid #3d75bc; outline-offset:3px; }
 @media (max-width:600px) { .onboarding-topbar { padding:0 12px; }.onboarding-topbar .brand strong { display:none; }.onboarding-workspace { padding:28px 18px; }.onboarding-scope { gap:16px; }.onboarding-chat { min-height:600px; }.onboarding-back { font-size:11px; } }
+
+.sidebar-review { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); }
+.sidebar-review-copy { padding:16px 12px 10px; }
+.sidebar-review-copy strong { display:block; font:500 23px/1.15 Georgia,serif; letter-spacing:-.025em; color:var(--navy); }
+.sidebar-review-copy p { margin:12px 0 0; font-size:11px; line-height:1.7; color:var(--muted); }
+.onboarding-layout .onboarding-workspace { width:100%; min-width:0; }
+@media(max-width:720px) { .onboarding-layout .sidebar { display:block; width:100%; padding:16px 18px; }.onboarding-layout .sidebar>.side-label,.onboarding-layout .sidebar-review-copy { display:none; }.onboarding-layout .sidebar>.side-item { display:inline-flex; }.onboarding-layout .sidebar-review { margin-top:10px; padding-top:10px; }.onboarding-layout .sidebar-review>.side-label { display:none; } }

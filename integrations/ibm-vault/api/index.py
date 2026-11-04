@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 import httpx
 import jwt
+from api import admin as admin_review
 from jsonschema import Draft4Validator, ValidationError, SchemaError
 from referencing.exceptions import Unresolvable
 from fastapi import FastAPI, HTTPException, Request
@@ -128,15 +129,17 @@ def encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
-async def issue_plan(plan: Plan) -> dict:
+async def issue_plan(plan: Plan, *, request_id: str | None = None, queue: bool = True) -> dict:
     plan.check_action()
-    body = {"plan": plan.model_dump(), "exp": int(time.time()) + 600, "id": str(uuid.uuid4()), "aud": trusted_origin("APP_ORIGIN")}
+    body = {"plan": plan.model_dump(), "exp": int(time.time()) + 600, "id": request_id or str(uuid.uuid4()), "aud": trusted_origin("APP_ORIGIN")}
     data = encode(json.dumps(body, separators=(",", ":"), sort_keys=True).encode())
     signature = encode(hmac.new(signing_key(), data.encode(), hashlib.sha256).digest())
     ticket = f"{data}.{signature}"
     review_id = secrets.token_urlsafe(16)
+    if queue:
+        await admin_review.register(body)
     await store_review(review_id, ticket)
-    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#review={review_id}", "status": "awaiting_browser_review", "note": "Nothing has been changed in Vault. Review and confirm in the secure form."}
+    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#review={review_id}", "status": "awaiting_admin_review" if admin_review.enabled() else "awaiting_browser_review", "admin_queue_url": trusted_origin("APP_ORIGIN") + "/admin", "note": "Nothing has been changed in Vault. An approved administrator must review and authorize execution in the secure form."}
 
 
 def read_plan(ticket: str) -> Plan:
@@ -296,7 +299,7 @@ def access_requirements(plan: Plan) -> dict:
 def preview(body: TicketInput, request: Request):
     same_origin(request)
     plan = read_plan(body.ticket)
-    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan)}
+    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan), "admin_review_required": admin_review.enabled()}
 
 
 async def vault_request(client, method, path, token, payload=None, allow_missing=False):
@@ -473,6 +476,33 @@ async def execute(body: ExecuteInput, request: Request):
         raise HTTPException(422, "This plan does not accept operation JSON")
     if plan.action == "create_secret" and (not 1 <= len(body.secret_data) <= 64 or any(not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", k) for k in body.secret_data)):
         raise HTTPException(422, "Provide 1 to 64 named secret fields")
+    actor = admin_review.require_admin(request) if admin_review.enabled() else None
+    request_id = await admin_review.begin(body.ticket, actor) if actor else None
+    try:
+        result = await execute_validated(plan, token, payload, body)
+    except HTTPException as error:
+        if request_id:
+            try:
+                await admin_review.finish(request_id, actor, error=error.status_code)
+            except HTTPException:
+                pass  # Remain executing and block resubmission if status storage is unavailable.
+        raise
+    except Exception:
+        if request_id:
+            try:
+                await admin_review.finish(request_id, actor, error=500)
+            except HTTPException:
+                pass
+        raise HTTPException(503, "Outcome requires verification in Vault. Do not resubmit this request.") from None
+    if request_id:
+        try:
+            await admin_review.finish(request_id, actor, result=result)
+        except HTTPException:
+            raise HTTPException(503, "Vault may have completed the operation, but its queue status could not be saved. Verify Vault before any retry.") from None
+    return result
+
+
+async def execute_validated(plan, token, payload, body):
     # No ambient Vault credentials; each request acts with the caller's ACLs.
     async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
         current = await checked_mount(client, plan, token)
@@ -561,6 +591,9 @@ def chat_page():
 
 @app.get("/assets/{name}")
 def asset(name: str):
-    if name not in {"onboard.js", "chat.js", "styles.css"}:
+    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css"}:
         raise HTTPException(404)
     return FileResponse(ROOT / "web" / name)
+
+
+admin_review.install(app)

@@ -65,7 +65,7 @@ $("execute").addEventListener("submit", async (event) => {
   const payload = { ticket, vault_token: $("vault-token").value, confirmed: $("confirmed").checked, secret_data: secretData, operation_json: $("operation-json").value, confirmation_text: $("confirmation-text").value };
   try {
     const result = await call("/api/execute", payload);
-    $("status").textContent = result.status === "already_exists" ? "The compatible engine already exists. No changes were made." : result.status === "completed" ? "Vault completed the reviewed operation." : "Created in Vault.";
+    $("status").textContent = result.status === "already_exists" ? "The compatible engine already exists. No changes were made." : result.status === "completed" ? "Vault completed the approved operation. Its outcome is recorded in the review queue." : "Created in Vault.";
     const { sensitive_result: sensitive, ...receipt } = result;
     $("receipt").textContent = JSON.stringify(receipt, null, 2); $("receipt").hidden = false; $("execute").hidden = true; ticket = null;
     if (sensitive && Object.keys(sensitive).length) { $("sensitive-output").textContent = JSON.stringify(sensitive, null, 2); $("sensitive-result").hidden = false; }
@@ -102,7 +102,15 @@ $("execute").addEventListener("submit", async (event) => {
       $("access-help").hidden = false;
     }
     if (plan.action === "create_secret") $("inspect-engine").hidden = true;
-    $("execute").hidden = false;
+    let approvedAdmin = true;
+    $("back-queue").hidden = !result.admin_review_required;
+    if (result.admin_review_required) {
+      const session = await fetch("/api/admin/session", {credentials:"same-origin", cache:"no-store"});
+      approvedAdmin = session.ok;
+      $("admin-required").hidden = approvedAdmin;
+      if (!approvedAdmin) $("status").textContent = "Queued for administrator review. No Vault change has been made.";
+    }
+    $("execute").hidden = !approvedAdmin;
     if (plan.action === "create_secret") { $("secret-fields").hidden = false; addField(); }
     if (["engine_operation", "tune_engine"].includes(plan.action)) $("operation-fields").hidden = false;
     if (result.confirmation_phrase) {

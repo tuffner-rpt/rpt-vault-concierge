@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminReviewLink } from "../components/AdminReviewLink";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export default function VaultOnboarding() {
         </Link>
         <Link className="onboarding-back" href="/">← Back to catalog</Link>
       </header>
+      <div className="workspace onboarding-layout">
+        <aside className="sidebar"><div className="side-label">WORKSPACE</div><Link className="side-item" href="/">⌂ &nbsp; Secret catalog</Link><Link className="side-item active" href="/vault-onboarding">✦ &nbsp; IBM Granite chat</Link><AdminReviewLink /></aside>
       <section className="onboarding-workspace" aria-labelledby="onboarding-title">
         <div className="panel-kicker">IBM WATSONX ORCHESTRATE · GRANITE</div>
         <h1 id="onboarding-title">Onboard with a conversation.</h1>
@@ -47,6 +50,7 @@ export default function VaultOnboarding() {
           </section>
         )}
       </section>
+      </div>
     </main>
   );
 }

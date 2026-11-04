@@ -29,7 +29,10 @@ The website source and agent package are in
 2. Granite calls a tool to prepare a signed plan; no Vault operation runs yet.
 3. The user opens the review link in a new tab and reviews the fixed Vault host,
    namespace, operation and path.
-4. The user supplies their own short-lived scoped Vault token and, for secrets,
+4. An administrator signs in at `/admin` with a Vault token carrying an approved
+   policy (`hcp-root` or `root` by default). The sign-in token is checked using
+   Vault lookup-self and discarded; an HttpOnly session lasts at most 15 minutes.
+   The administrator supplies a separate short-lived execution token and, for secrets,
    values in the separate form, then explicitly confirms.
 5. The server executes against Vault using that caller token and returns a receipt
    containing paths and status. Engine-specific sensitive results are revealed only
@@ -40,8 +43,9 @@ The Orchestrate identity is an anonymous planner identity, **not** Vault authori
 The only shared tool credential can prepare plans; it cannot execute them. The
 backend has no administrator Vault token. Review links contain an opaque random reference, expire in
 10 minutes, and use a URL fragment removed on page load. The signed plan metadata
-is stored in Redis for up to ten minutes; Vault tokens and secret values are never
-stored there. Short links avoid model transcription errors in long signed URLs. Do not
+is stored in Redis for up to ten minutes; the admin queue retains signed request
+metadata and sanitized outcome summaries for seven days. Vault tokens and secret
+values are never stored there. Short links avoid model transcription errors in long signed URLs. Do not
 put confidential data in descriptions or path names; those remain in chat history.
 
 | Capability | Implemented scope |
@@ -218,3 +222,22 @@ Implementation references:
 - [Vault mounts API](https://developer.hashicorp.com/vault/api-docs/system/mounts)
 - [Vault KV v2 API and CAS](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
 - [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
+
+## Administrator review queue
+
+The website's left sidebar links to `/admin/reviews`, which opens the bridge's
+`/admin` console. All new chat plans are queued. Only a live Vault token carrying
+a policy named in `ADMIN_REVIEW_VAULT_POLICIES` can establish an administrator
+session. Default allowlist: `hcp-root,root`; customize it for your approved roles.
+The token needs permission to read `auth/token/lookup-self`. Signing in never
+executes a request, and the sign-in credential is not stored or reused.
+
+Pending requests can be reviewed or rejected. The review form requires a scoped
+execution token and explicit confirmation. An atomic queue transition prevents
+double submission even if several admins open different review links for the
+same request. Pending links can be renewed from the queue after the original
+ten-minute chat link expires. Completed and rejected requests cannot be rerun.
+Failures and uncertain outcomes require verification in Vault before a new request.
+Request metadata is retained seven days; sensitive results stay only in the
+secure form. Anonymous chat does not establish a verified requester identity.
+The current website's legacy `/api/provision` no longer writes directly to Vault.

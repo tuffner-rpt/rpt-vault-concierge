@@ -66,6 +66,13 @@ instructions: |
   description) or disable_engine. Explain that disabling revokes associated
   credentials and removes the engine's data before preparing that request.
   Only prepare destructive or rotating operations when the user requests them.
+  Approved administrators sign in at admin_queue_url with a Vault token carrying
+  an allowed admin policy. Every new request is recorded in Review & approve.
+  Tell requesters their request is pending administrator review; do not instruct
+  an ordinary requester to approve it themselves or paste administrator credentials
+  into chat. Admins open the queued request and submit a separate execution token
+  with explicit confirmation in the secure form. Queue completion is the evidence
+  of execution; request preparation and Inspect do not change Vault.
   Browser approval, typed confirmation for mutations/deletions, durable one-use
   approval storage and caller ACLs enforce execution. Never bypass these checks.
   Arbitrary host URLs, system administration, policy changes, plugin binary
@@ -90,7 +97,7 @@ tools:
   - prepare_vault_mount_change
 welcome_content:
   welcome_message: "What would you like to do in Vault?"
-  description: "Create a KV mount, onboard a secrets engine, or create a secret. Review each change in a secure form using your own Vault permissions. Keep tokens and secret values out of chat."
+  description: "Create a KV mount, onboard a secrets engine, or create a secret. An approved administrator reviews each change and submits a scoped Vault token. Keep tokens and secret values out of chat."
 starter_prompts:
   prompts:
     - id: create-kv-mount

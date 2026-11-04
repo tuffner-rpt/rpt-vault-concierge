@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Without credentials, the portal runs safely in demo mode: provisioning returns metadata but does not persist generated secret values. Add `VAULT_ADDR` and `VAULT_TOKEN` to write secrets to a Vault KV v2 mount named `kv`.
+Template selections open IBM Granite chat. All new provisioning requests require administrator review; the legacy `/api/provision` endpoint returns a review-required response and performs no Vault writes.
 
 ## Deploy to Vercel
 
@@ -21,13 +21,13 @@ Without credentials, the portal runs safely in demo mode: provisioning returns m
 
 The app automatically uses Vercel's production deployment URL for social metadata.
 
-For production, store `VAULT_TOKEN` as an encrypted Vercel environment variable. Ensure `VAULT_ADDR` is reachable from Vercel's serverless network, restrict the token to the required KV paths, and prefer a short-lived Vault auth method over a static token.
+The website uses no shared Vault execution token. The separate bridge connects to Vault using the reviewing administrator's supplied execution token.
 
 ## IBM Granite Vault onboarding
 
 The catalog includes a separate **Onboard engines and secrets with IBM Granite**
 entry at `/vault-onboarding`. It embeds the IBM watsonx Orchestrate chat from a
-separately deployed onboarding bridge. The existing template provisioning flow remains available.
+separately deployed onboarding bridge. Template selections route into the reviewed conversation flow.
 
 The complete IBM agent definition, Python tools, connection specification, secure
 form, bridge and tests are in [integrations/ibm-vault](integrations/ibm-vault/README.md).
@@ -50,3 +50,5 @@ token; it does not use this website's existing shared `VAULT_TOKEN` setting.
 IBM credentials, model availability and target Vault connectivity must be verified
 before calling the new integration live. Follow the acceptance sequence in the
 integration directory.
+
+The **Review & approve** sidebar section opens the administrator queue. Approved Vault policies gate sign-in, and each execution requires its own token and explicit confirmation.

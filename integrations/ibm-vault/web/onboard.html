@@ -6,16 +6,17 @@
 <main>
   <p class="eyebrow">WATSONX ORCHESTRATE + HASHICORP VAULT</p>
   <h1>A conversation.<br>A reviewed change.</h1>
-  <p class="intro">Your agent prepares the request. You authorize the change with your own Vault permissions.</p>
-  <ol class="steps"><li>01 · Describe in chat</li><li class="active">02 · Review & authorize</li><li>03 · Create in Vault</li></ol>
+  <p class="intro">Your agent prepares the request. An approved administrator reviews and authorizes the change using their Vault permissions.</p>
+  <ol class="steps"><li>01 · Describe in chat</li><li class="active">02 · Review & authorize</li><li>03 · Execute in Vault</li></ol>
   <section class="card" aria-labelledby="review-title">
     <div class="card-head"><h2 id="review-title">Review your request</h2><span class="dot"></span></div>
     <p id="status" role="status" aria-live="polite">Loading your plan…</p>
     <dl id="summary" hidden></dl>
     <p id="scope" class="notice" hidden></p>
-    <details id="access-help" hidden><summary>Permissions needed for this request</summary><p id="access-note" class="hint"></p><p class="hint">Use this policy as a starting point for your Vault administrator. The earlier inspection-only token cannot enable mounts or create secrets. Keep administrator tokens out of this form.</p><pre id="access-policy"></pre></details>
+    <details id="access-help" hidden><summary>Permissions needed for this request</summary><p id="access-note" class="hint"></p><p class="hint">Use this policy as a starting point for your Vault administrator. The earlier inspection-only token cannot enable mounts or create secrets. Prefer a request-scoped execution token for the actual change.</p><pre id="access-policy"></pre></details>
+    <p id="admin-required" class="notice" hidden>This request is pending administrator review. <a href="/admin">Sign in to Review &amp; approve</a> with an approved Vault admin policy.</p>
     <form id="execute" hidden autocomplete="off">
-      <label for="vault-token">Your scoped Vault token</label>
+      <label for="vault-token">Your scoped execution token</label>
       <input id="vault-token" type="password" autocomplete="off" required spellcheck="false" maxlength="4096" placeholder="Enter a short-lived token">
       <p class="hint">Sent to this server over HTTPS and used only for this request. It is never sent to the chatbot or saved by this application. Use a short-lived token with only the permissions this change needs.</p>
       <button id="inspect-engine" class="secondary" type="button">Inspect Vault (read only)</button>
@@ -27,6 +28,7 @@
       <button id="submit" type="submit">Confirm & create</button>
     </form>
     <pre id="receipt" hidden></pre>
+    <a id="back-queue" class="secondary queue-back" href="/admin" hidden>Back to review queue →</a>
     <details id="sensitive-result" hidden><summary>Reveal sensitive engine result</summary><p class="hint">May contain credentials, plaintext or private keys. Keep this output out of chat. It is available only on this page.</p><pre id="sensitive-output"></pre><button id="clear-result" class="secondary" type="button">Clear sensitive result</button></details>
   </section>
   <p class="footer-note">All available secrets engine types · KV v2 data creation uses CAS · Vault ACLs apply</p>
