@@ -78,7 +78,7 @@ export default function Home() {
 
           <a className="agent-banner watsonx-banner" href="/vault-onboarding">
             <span className="agent-gem">↗</span>
-            <span><strong>Onboard engines and secrets with IBM Granite</strong><small>Describe your request, review the change, and authorize it with your Vault permissions.</small></span>
+            <span><strong>Onboard engines and secrets with IBM Granite</strong><small>Describe your request. An administrator reviews the change and authorizes it with their Vault permissions.</small></span>
             <span className="ask-button">Open IBM chat <b>→</b></span>
           </a>
 
