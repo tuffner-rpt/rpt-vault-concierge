@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DocumentationWindow } from "./components/DocumentationWindow";
 import { AdminReviewLink } from "./components/AdminReviewLink";
+import { FloatingWatsonChat } from "./components/FloatingWatsonChat";
 
 type Template = {
   id: string;
@@ -76,17 +77,12 @@ export default function Home() {
             ))}
           </section>
 
-          <a className="agent-banner watsonx-banner" href="/vault-onboarding">
-            <span className="agent-gem">↗</span>
-            <span><strong>Onboard engines and secrets with IBM Granite</strong><small>Describe your request. An administrator reviews the change and authorizes it with their Vault permissions.</small></span>
-            <span className="ask-button">Open IBM chat <b>→</b></span>
-          </a>
-
           <footer id="docs"><span>RPT Vault Developer Concierge - Demo</span></footer>
         </section>
       </div>
 
       <DocumentationWindow open={docsOpen} onClose={() => setDocsOpen(false)} />
+      <FloatingWatsonChat />
     </main>
   );
 }
