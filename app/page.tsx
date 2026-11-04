@@ -29,10 +29,6 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ path: string; lease: string } | null>(null);
   const [error, setError] = useState("");
-  const [agentOpen, setAgentOpen] = useState(false);
-  const [agentInput, setAgentInput] = useState("");
-  const [agentReply, setAgentReply] = useState("Tell me what your app needs. I can recommend the safest secret type and configuration.");
-  const [agentBusy, setAgentBusy] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
 
   const previewPath = useMemo(() => {
@@ -72,26 +68,6 @@ export default function Home() {
     }
   }
 
-  async function askAgent(event: FormEvent) {
-    event.preventDefault();
-    if (!agentInput.trim()) return;
-    setAgentBusy(true);
-    try {
-      const response = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: agentInput }),
-      });
-      const result = await response.json();
-      setAgentReply(result.message || "I couldn't prepare a recommendation.");
-    } catch {
-      setAgentReply("I couldn't reach the agent. You can still provision from a template.");
-    } finally {
-      setAgentBusy(false);
-      setAgentInput("");
-    }
-  }
-
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -122,10 +98,6 @@ export default function Home() {
               <span className="status-dot" />
               <div><strong>Vault healthy</strong><small>us-central1 · 99.99%</small></div>
             </div>
-            <div className="side-status">
-              <span className="status-dot openai-dot" />
-              <div><strong>OpenAI healthy</strong><small>gpt-5.6-terra · ready</small></div>
-            </div>
           </div>
         </aside>
 
@@ -146,12 +118,6 @@ export default function Home() {
               </button>
             ))}
           </section>
-
-          <button className="agent-banner" onClick={() => setAgentOpen(true)}>
-            <span className="agent-gem">✦</span>
-            <span><strong>Not sure which secret to use?</strong><small>Ask RPT Vault Developer Concierge For Recommended Vault Onboarding Patterns</small></span>
-            <span className="ask-button">Ask OpenAI <b>→</b></span>
-          </button>
 
           <a className="agent-banner watsonx-banner" href="/vault-onboarding">
             <span className="agent-gem">↗</span>
@@ -201,16 +167,6 @@ export default function Home() {
         </div>
       )}
 
-      {agentOpen && (
-        <aside className="agent-panel" aria-label="RPT Vault Developer Concierge">
-          <div className="agent-head"><span className="agent-gem brand-agent"><img src="/rpt-gcp.jpeg" alt="" /></span><div><strong>RPT Vault Developer Concierge</strong><small>Powered by OpenAI</small></div><button onClick={() => setAgentOpen(false)} aria-label="Close RPT Vault Developer Concierge">×</button></div>
-          <div className="agent-thread">
-            <div className="agent-bubble">{agentReply}</div>
-            <div className="agent-suggestions"><button onClick={() => setAgentInput("My production service needs a Stripe API key")}>Production API key</button><button onClick={() => setAgentInput("My CI job needs temporary database access")}>CI database access</button></div>
-          </div>
-          <form className="agent-form" onSubmit={askAgent}><input value={agentInput} onChange={(e) => setAgentInput(e.target.value)} placeholder="Describe what your app needs…" aria-label="Message RPT Vault Developer Concierge"/><button disabled={agentBusy || !agentInput.trim()}>{agentBusy ? "…" : "↑"}</button></form>
-        </aside>
-      )}
       <DocumentationWindow open={docsOpen} onClose={() => setDocsOpen(false)} />
     </main>
   );

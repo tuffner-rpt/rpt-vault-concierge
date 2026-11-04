@@ -1,6 +1,6 @@
 # Vault Management Developer Portal
 
-A Vercel-ready developer portal for provisioning HashiCorp Vault secrets from governed templates, with an OpenAI-powered recommendation agent.
+A Vercel-ready developer portal for provisioning HashiCorp Vault secrets from governed templates, with IBM Granite onboarding through watsonx Orchestrate.
 
 ## Run locally
 
@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Without credentials, the portal runs safely in demo mode: provisioning returns metadata but does not persist generated secret values. Add `VAULT_ADDR` and `VAULT_TOKEN` to write secrets to a Vault KV v2 mount named `kv`. Add `OPENAI_API_KEY` to enable live agent recommendations through the OpenAI Responses API.
+Without credentials, the portal runs safely in demo mode: provisioning returns metadata but does not persist generated secret values. Add `VAULT_ADDR` and `VAULT_TOKEN` to write secrets to a Vault KV v2 mount named `kv`.
 
 ## Deploy to Vercel
 
@@ -21,14 +21,13 @@ Without credentials, the portal runs safely in demo mode: provisioning returns m
 
 The app automatically uses Vercel's production deployment URL for social metadata.
 
-For production, store `OPENAI_API_KEY` and `VAULT_TOKEN` as encrypted Vercel environment variables. Ensure `VAULT_ADDR` is reachable from Vercel's serverless network, restrict the token to the required KV paths, and prefer a short-lived Vault auth method over a static token.
+For production, store `VAULT_TOKEN` as an encrypted Vercel environment variable. Ensure `VAULT_ADDR` is reachable from Vercel's serverless network, restrict the token to the required KV paths, and prefer a short-lived Vault auth method over a static token.
 
 ## IBM Granite Vault onboarding
 
 The catalog includes a separate **Onboard engines and secrets with IBM Granite**
 entry at `/vault-onboarding`. It embeds the IBM watsonx Orchestrate chat from a
-separately deployed onboarding bridge. The existing template and recommendation
-flows remain available.
+separately deployed onboarding bridge. The existing template provisioning flow remains available.
 
 The complete IBM agent definition, Python tools, connection specification, secure
 form, bridge and tests are in [integrations/ibm-vault](integrations/ibm-vault/README.md).

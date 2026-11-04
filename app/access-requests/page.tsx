@@ -55,7 +55,6 @@ export default function AccessRequestsPage() {
           <a className="side-item" href="/#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}><span>?</span> Documentation</a>
           <div className="health-statuses" aria-label="Service health">
             <div className="side-status"><span className="status-dot" /><div><strong>Vault healthy</strong><small>us-central1 · 99.99%</small></div></div>
-            <div className="side-status"><span className="status-dot openai-dot" /><div><strong>OpenAI healthy</strong><small>gpt-5.6-terra · ready</small></div></div>
           </div>
         </aside>
 
