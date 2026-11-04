@@ -123,3 +123,5 @@ footer { display:flex; justify-content:space-between; margin-top:32px; padding-t
 .sidebar-review-copy p { margin:12px 0 0; font-size:11px; line-height:1.7; color:var(--muted); }
 .onboarding-layout .onboarding-workspace { width:100%; min-width:0; }
 @media(max-width:720px) { .onboarding-layout .sidebar { display:block; width:100%; padding:16px 18px; }.onboarding-layout .sidebar>.side-label,.onboarding-layout .sidebar-review-copy { display:none; }.onboarding-layout .sidebar>.side-item { display:inline-flex; }.onboarding-layout .sidebar-review { margin-top:10px; padding-top:10px; }.onboarding-layout .sidebar-review>.side-label { display:none; } }
+
+.chat-open-link { text-align:right; margin:12px 0; font-size:12px; }.chat-open-link a { color:var(--navy); text-decoration:underline; text-underline-offset:3px; }

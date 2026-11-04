@@ -26,8 +26,11 @@ The website uses no shared Vault execution token. The separate bridge connects t
 ## IBM Granite Vault onboarding
 
 The catalog includes a separate **Onboard engines and secrets with IBM Granite**
-entry at `/vault-onboarding`. It embeds the IBM watsonx Orchestrate chat from a
-separately deployed onboarding bridge. Template selections route into the reviewed conversation flow.
+entry at `/vault-onboarding`. The chat wrapper is hosted on this website at
+`/vault-onboarding/chat`; same-origin `/api/watsonx/config` and
+`/api/watsonx/token` routes relay only anonymous IBM chat identity and public
+configuration from the separate bridge. No Vault credentials or administrator
+sessions pass through those routes. Template selections route into the reviewed conversation flow.
 
 The complete IBM agent definition, Python tools, connection specification, secure
 form, bridge and tests are in [integrations/ibm-vault](integrations/ibm-vault/README.md).
@@ -52,3 +55,8 @@ before calling the new integration live. Follow the acceptance sequence in the
 integration directory.
 
 The **Review & approve** sidebar section opens the administrator queue. Approved Vault policies gate sign-in, and each execution requires its own token and explicit confirmation.
+
+The chat wrapper uses the website origin so alternate deployment domains do not
+need to frame the bridge. An **Open chat in a new tab** link provides a standalone
+view. Review and admin links always open outside the chat frame; their existing
+anti-framing and administrator-policy checks remain enforced on the bridge.

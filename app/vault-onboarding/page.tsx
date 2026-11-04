@@ -9,7 +9,7 @@ function chatUrl(): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") return null;
-    return `${url.origin}/chat`;
+    return "/vault-onboarding/chat";
   } catch {
     return null;
   }
@@ -39,7 +39,10 @@ export default function VaultOnboarding() {
         </div>
         <p className="onboarding-privacy">Keep Vault tokens and secret values out of chat. Enter them only in the separate secure review form, opened in a new tab.</p>
         {url ? (
-          <iframe className="onboarding-chat" src={url} title="IBM Granite Vault onboarding assistant" referrerPolicy="no-referrer" />
+          <div>
+            <p className="chat-open-link"><a href={url} target="_blank" rel="noopener noreferrer">Open chat in a new tab ↗</a></p>
+            <iframe className="onboarding-chat" src={url} title="IBM Granite Vault onboarding assistant" referrerPolicy="no-referrer" />
+          </div>
         ) : (
           <section className="onboarding-unavailable" role="status">
             <span className="agent-gem">✦</span>
