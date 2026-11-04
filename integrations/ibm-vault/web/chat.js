@@ -13,6 +13,7 @@
     const response = await fetch("/api/chat-config", { cache: "no-store" });
     if (!response.ok) throw new Error("The IBM agent connection has not been configured yet.");
     const config = await response.json();
+    config.layout = { form: "custom", customElement: document.getElementById("root"), showMaxWidth: false };
     config.token = await freshToken();
     config.chatOptions.onLoad = (instance) => {
       status.hidden = true;
