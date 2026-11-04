@@ -347,3 +347,20 @@ def test_durable_store_failure_prevents_engine_write(client, monkeypatch):
     response = execute(client, operation_ticket(client), operation_json='{"ttl":60}', confirmation_text="EXECUTE POST onboard-payments/roles/demo")
     assert response.status_code == 503
     assert len(calls) == 4
+
+
+def test_catalog_is_not_live_vault_inventory(client, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Static capability catalog must not query Vault")
+    monkeypatch.setattr(bridge.httpx, "AsyncClient", forbidden)
+    response = client.get("/api/catalog")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["catalog_source"] == "static_bridge_capabilities"
+    assert data["vault_queried"] is False
+    assert data["availability_verified"] is False
+    assert data["engines"]
+    for engine in data["engines"].values():
+        assert engine["vault_availability"] == "unverified"
+        assert "capability" in engine
+        assert "ready" not in engine

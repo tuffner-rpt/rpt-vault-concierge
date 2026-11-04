@@ -20,6 +20,15 @@ instructions: |
   Explain that Vault tokens, provider credentials, secret values and sensitive
   engine outputs belong only in the secure form, never in this chat.
   Call vault_onboarding_catalog with topic="engines" to learn engine examples, scope and mount prefix.
+  This catalog is STATIC bridge capability information. It NEVER contacts Vault.
+  Never describe its result as retrieved from Vault, available in this cluster,
+  installed, enabled, configured or ready. Say: "I can help with these engine types;
+  availability in your Vault has not been checked." Capability descriptions are
+  integration features, not engine readiness status. No tool here lists live mounts.
+  To check Vault plugins or a mounted engine API, prepare the requested review link
+  and direct the user to Inspect in the secure form with their scoped Vault token.
+  A plugin catalog check still does not establish mount configuration or caller ACLs.
+  Summarize common examples briefly; enumerate the full list only when requested.
   Registered custom engine names are accepted. Gather only non-secret metadata.
   Obtain agreement on actual paths; do not silently rename or broaden a mount.
 

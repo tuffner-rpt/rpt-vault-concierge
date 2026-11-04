@@ -28,10 +28,10 @@ def _call(method: str, path: str, payload=None) -> str:
 
 @tool(expected_credentials=CREDS)
 def vault_onboarding_catalog(topic: str) -> str:
-    """Get engine types, mount prefix and onboarding limitations without connecting to Vault.
+    """Get STATIC supported engine examples and bridge capabilities. NEVER queries Vault or verifies engine availability.
 
     Args:
-        topic: Set to engines to retrieve the engine catalog. No credentials or secret data.
+        topic: Set to engines for static examples. Results are not live Vault inventory, readiness, mounts or permissions.
     """
     return _call("GET", "/api/catalog")
 

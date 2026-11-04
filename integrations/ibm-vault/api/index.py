@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 app = FastAPI(title="RPT Vault Onboarding Bridge", docs_url=None, redoc_url=None, openapi_url=None)
 ENGINES = {
     "kv-v1": {"type": "kv", "options": {"version": "1"}, "ready": "KV v1 operations require the secure engine operation form."},
-    "kv-v2": {"type": "kv", "options": {"version": "2"}, "ready": "Ready for versioned secret creation."},
+    "kv-v2": {"type": "kv", "options": {"version": "2"}, "ready": "Supports create-only versioned secret plans; Vault mount and caller access are unverified."},
     "transit": {"type": "transit", "options": {}, "ready": "Manage keys and cryptographic operations using the live engine API schema."},
     "database": {"type": "database", "options": {}, "ready": "Manage database connections, roles and credential operations using the live engine API schema."},
     "pki": {"type": "pki", "options": {}, "ready": "Manage issuers, certificate roles and issuance using the live engine API schema."},
@@ -217,7 +217,7 @@ def health():
 
 @app.get("/api/catalog")
 def catalog():
-    return {"engines": ENGINES, "custom_plugins": "Any registered mountable secrets plugin; availability is checked against Vault at execution.", "system_managed": ["cubbyhole", "identity", "system"], "mount_prefix": os.getenv("ALLOWED_MOUNT_PREFIX", "onboard-"), "operations": ["enable_engine", "create_secret", "engine_operation", "tune_engine", "disable_engine"], "secret_support": "KV v2 data writes remain create-only. Other engine operations use live OpenAPI validation and caller ACLs. Destructive operations require typed confirmation."}
+    return {"catalog_source": "static_bridge_capabilities", "vault_queried": False, "availability_verified": False, "notice": "These are supported engine examples, not installed or available engines retrieved from Vault. Mounts, licenses, provider configuration and caller access have not been checked. Use Inspect in the secure review form with your scoped Vault token to query Vault.", "engines": {name: {"type": spec["type"], "options": spec["options"], "capability": spec["ready"], "vault_availability": "unverified"} for name, spec in ENGINES.items()}, "custom_plugins": "Any registered mountable secrets plugin; availability is checked against Vault at execution.", "system_managed": ["cubbyhole", "identity", "system"], "mount_prefix": os.getenv("ALLOWED_MOUNT_PREFIX", "onboard-"), "operations": ["enable_engine", "create_secret", "engine_operation", "tune_engine", "disable_engine"], "secret_support": "KV v2 data writes remain create-only. Other engine operations use live OpenAPI validation and caller ACLs. Destructive operations require typed confirmation."}
 
 
 @app.post("/api/plans")
