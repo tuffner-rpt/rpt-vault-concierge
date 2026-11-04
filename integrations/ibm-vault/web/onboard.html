@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review Vault onboarding · RPT</title><link rel="stylesheet" href="/assets/styles.css"><script src="/assets/onboard.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">RPT<span> / VAULT CONCIERGE</span></a><span class="badge">SECURE ONBOARDING</span></header>
+<main>
+  <p class="eyebrow">WATSONX ORCHESTRATE + HASHICORP VAULT</p>
+  <h1>A conversation.<br>A reviewed change.</h1>
+  <p class="intro">Your agent prepares the request. An approved administrator reviews and authorizes the change using their Vault permissions.</p>
+  <ol class="steps"><li>01 · Describe in chat</li><li class="active">02 · Review & authorize</li><li>03 · Execute in Vault</li></ol>
+  <section class="card" aria-labelledby="review-title">
+    <div class="card-head"><h2 id="review-title">Review your request</h2><span class="dot"></span></div>
+    <p id="status" role="status" aria-live="polite">Loading your plan…</p>
+    <dl id="summary" hidden></dl>
+    <p id="scope" class="notice" hidden></p>
+    <details id="access-help" hidden><summary>Permissions needed for this request</summary><p id="access-note" class="hint"></p><p class="hint">Use this policy as a starting point for your Vault administrator. The earlier inspection-only token cannot enable mounts or create secrets. Prefer a request-scoped execution token for the actual change.</p><pre id="access-policy"></pre></details>
+    <p id="admin-required" class="notice" hidden>This request is pending administrator review. <a href="/admin">Sign in to Review &amp; approve</a> with an approved Vault admin policy.</p>
+    <form id="execute" hidden autocomplete="off">
+      <label for="vault-token">Your scoped execution token</label>
+      <input id="vault-token" type="password" autocomplete="off" required spellcheck="false" maxlength="4096" placeholder="Enter a short-lived token">
+      <p class="hint">Sent to this server over HTTPS and used only for this request. It is never sent to the chatbot or saved by this application. Use a short-lived token with only the permissions this change needs.</p>
+      <button id="inspect-engine" class="secondary" type="button">Inspect Vault (read only)</button>
+      <pre id="engine-info" hidden></pre>
+      <fieldset id="secret-fields" hidden><legend>Secret fields</legend><p class="hint">Enter secret values here. Keep them out of the conversation.</p><div id="fields"></div><button id="add-field" class="secondary" type="button">+ Add field</button></fieldset>
+      <fieldset id="operation-fields" hidden><legend>Engine operation input</legend><label for="operation-json">Request JSON</label><textarea id="operation-json" spellcheck="false" autocomplete="off" rows="8">{}</textarea><p class="hint">Inspect the engine to see its actual request schema. Enter provider credentials, role configuration and other sensitive fields here only. Read, list and delete requests use {}.</p></fieldset>
+      <div id="destructive-confirmation" hidden><p class="notice">This operation can change credentials, keys or stored data. Disabling an engine revokes its leases and removes its data. Verify the exact operation before continuing.</p><label for="confirmation-text">Type the exact phrase shown below</label><code id="confirmation-phrase"></code><input id="confirmation-text" autocomplete="off" spellcheck="false"></div>
+      <label class="confirm"><input id="confirmed" type="checkbox" required><span>I reviewed the Vault address, namespace, path, and operation above and authorize this change.</span></label>
+      <button id="submit" type="submit">Confirm & create</button>
+    </form>
+    <pre id="receipt" hidden></pre>
+    <a id="back-queue" class="secondary queue-back" href="/admin" hidden>Back to review queue →</a>
+    <details id="sensitive-result" hidden><summary>Reveal sensitive engine result</summary><p class="hint">May contain credentials, plaintext or private keys. Keep this output out of chat. It is available only on this page.</p><pre id="sensitive-output"></pre><button id="clear-result" class="secondary" type="button">Clear sensitive result</button></details>
+  </section>
+  <p class="footer-note">All available secrets engine types · KV v2 data creation uses CAS · Vault ACLs apply</p>
+</main>
+</body></html>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DocumentationWindow } from "../components/DocumentationWindow";
+import { AdminReviewLink } from "../components/AdminReviewLink";
 
 type AccessRequest = {
   name: string;
@@ -53,9 +54,9 @@ export default function AccessRequestsPage() {
           <a className="side-item active" href="/access-requests"><span>◎</span> Access requests</a>
           <div className="side-label section-gap">Resources</div>
           <a className="side-item" href="/#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}><span>?</span> Documentation</a>
+          <AdminReviewLink />
           <div className="health-statuses" aria-label="Service health">
             <div className="side-status"><span className="status-dot" /><div><strong>Vault healthy</strong><small>us-central1 · 99.99%</small></div></div>
-            <div className="side-status"><span className="status-dot openai-dot" /><div><strong>OpenAI healthy</strong><small>gpt-5.6-terra · ready</small></div></div>
           </div>
         </aside>
 

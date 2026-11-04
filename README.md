@@ -1,6 +1,6 @@
 # Vault Management Developer Portal
 
-A Vercel-ready developer portal for provisioning HashiCorp Vault secrets from governed templates, with an OpenAI-powered recommendation agent.
+A Vercel-ready developer portal for provisioning HashiCorp Vault secrets from governed templates, with IBM Granite onboarding through watsonx Orchestrate.
 
 ## Run locally
 
@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Without credentials, the portal runs safely in demo mode: provisioning returns metadata but does not persist generated secret values. Add `VAULT_ADDR` and `VAULT_TOKEN` to write secrets to a Vault KV v2 mount named `kv`. Add `OPENAI_API_KEY` to enable live agent recommendations through the OpenAI Responses API.
+Template selections open IBM Granite chat. All new provisioning requests require administrator review; the legacy `/api/provision` endpoint returns a review-required response and performs no Vault writes.
 
 ## Deploy to Vercel
 
@@ -21,4 +21,42 @@ Without credentials, the portal runs safely in demo mode: provisioning returns m
 
 The app automatically uses Vercel's production deployment URL for social metadata.
 
-For production, store `OPENAI_API_KEY` and `VAULT_TOKEN` as encrypted Vercel environment variables. Ensure `VAULT_ADDR` is reachable from Vercel's serverless network, restrict the token to the required KV paths, and prefer a short-lived Vault auth method over a static token.
+The website uses no shared Vault execution token. The separate bridge connects to Vault using the reviewing administrator's supplied execution token.
+
+## IBM Granite Vault onboarding
+
+The catalog includes a separate **Onboard engines and secrets with IBM Granite**
+entry at `/vault-onboarding`. The chat wrapper is hosted on this website at
+`/vault-onboarding/chat`; same-origin `/api/watsonx/config` and
+`/api/watsonx/token` routes relay only anonymous IBM chat identity and public
+configuration from the separate bridge. No Vault credentials or administrator
+sessions pass through those routes. Template selections route into the reviewed conversation flow.
+
+The complete IBM agent definition, Python tools, connection specification, secure
+form, bridge and tests are in [integrations/ibm-vault](integrations/ibm-vault/README.md).
+Deploy that directory as its own Vercel project or host it in the approved Vault
+network. Do not deploy its Python routing configuration over this Next.js app.
+
+Set this website's server-side `WXO_BRIDGE_URL` to the bridge's stable HTTPS origin
+(no path). Set the bridge's `WEBSITE_ORIGIN` to this website's production origin.
+The embed URL contains no credentials. When the setting is missing or invalid, the
+page explicitly reports that IBM setup is pending and makes no IBM or Vault calls.
+
+Agent scope: all available mountable engine types, including licensed Enterprise
+and registered custom plugins; live-schema-based configuration, roles and secret
+operations; lease tuning and disabling. KV v2 data writes remain CAS-protected.
+Generic operations require the bridge's durable Redis REST approval store.
+Review links open in a new tab for explicit approval and typed confirmation.
+Tokens and values stay outside the chat. The new flow uses each caller's Vault
+token; it does not use this website's existing shared `VAULT_TOKEN` setting.
+
+IBM credentials, model availability and target Vault connectivity must be verified
+before calling the new integration live. Follow the acceptance sequence in the
+integration directory.
+
+The **Review & approve** sidebar section opens the administrator queue. Approved Vault policies gate sign-in, and each execution requires its own token and explicit confirmation.
+
+The chat wrapper uses the website origin so alternate deployment domains do not
+need to frame the bridge. An **Open chat in a new tab** link provides a standalone
+view. Review and admin links always open outside the chat frame; their existing
+anti-framing and administrator-policy checks remain enforced on the bridge.

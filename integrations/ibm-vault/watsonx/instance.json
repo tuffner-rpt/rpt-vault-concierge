@@ -1,0 +1,8 @@
+{
+  "environment_name": "rpt-vault",
+  "service_instance_url": "https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/49049ef8-a58a-4d39-b778-23fb47342d35",
+  "instance_id": "49049ef8-a58a-4d39-b778-23fb47342d35",
+  "region": "us-south",
+  "authentication": "IBM IAM; configure the API key securely through the IBM ADK",
+  "note": "This is the ADK/API URL. Obtain the webchat hostURL and public agent identifiers from the deployed agent's embed script."
+}
