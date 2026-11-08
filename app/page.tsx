@@ -15,7 +15,7 @@ type Template = {
 };
 
 const templates: Template[] = [
-  { id: "kv-mount", icon: "⌁", title: "Create KV Mount", description: "Set up a versioned KV secrets engine at your chosen mount path.", accent: "mint", kind: "kv-v2" },
+  { id: "kv-mount", icon: "⌁", title: "Create KV Mount", description: "Set up a KV v1 or KV v2 secrets engine at your chosen mount path.", accent: "mint", kind: "kv-v1 / kv-v2" },
   { id: "kv-secret", icon: "◇", title: "Create KV Secret", description: "Add a new secret to an existing KV v2 mount.", accent: "blue", kind: "kv-v2" },
   { id: "kubernetes-secret", icon: "⎈", title: "Create Kubernetes Secret", description: "Request Vault-managed credentials for a Kubernetes workload.", accent: "violet", kind: "kubernetes" },
   { id: "database-secret", icon: "◉", title: "Create Database Secret", description: "Request database credentials from a configured Vault database engine.", accent: "blue", kind: "database" },

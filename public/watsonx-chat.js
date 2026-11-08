@@ -32,6 +32,11 @@
     config.token = await freshToken();
     config.chatOptions.onLoad = (instance) => {
       status.hidden = true;
+      if (workflow === "kv-mount") {
+        const welcome = { welcomeMessage: "What is your Business Unit ID?", description: null, showTimestamp: false, starterPrompts: [] };
+        if (typeof instance.updateWelcomeScreen === "function") instance.updateWelcomeScreen(welcome);
+        else if (typeof instance.updateHomeScreen === "function") instance.updateHomeScreen(welcome);
+      }
       instance.on("authTokenNeeded", async (event, current) => {
         try { event.authToken = await freshToken(); current.updateAuthToken(event.authToken); }
         catch (error) { status.textContent = error.message; status.hidden = false; }
