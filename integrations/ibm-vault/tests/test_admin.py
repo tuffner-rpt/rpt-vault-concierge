@@ -208,3 +208,32 @@ def test_sensitive_engine_output_is_not_saved_to_queue(setup, monkeypatch):
     assert result.status_code == 200
     assert 'never-store-this-output' in result.text
     assert 'never-store-this-output' not in json.dumps(values)
+
+
+def test_kv_mount_business_unit_is_signed_and_queued(setup):
+    client, values, calls, mounts = setup
+    response = client.post('/api/kv-mount-plans', headers={'X-API-Key': KEY}, json={
+        'business_unit_id': 'BU-456', 'mount': 'onboard-bu-test', 'kv_version': '2'})
+    assert response.status_code == 200 and not calls
+    review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
+    signed = client.post('/api/resolve', headers=HEADERS, json={'review_id': review}).json()['ticket']
+    assert execute(client, signed).status_code == 401
+    assert login(client).status_code == 200
+    queue = client.get('/api/admin/requests').json()['requests']
+    assert queue[0]['plan']['business_unit_id'] == 'BU-456'
+    assert execute(client, signed).status_code == 200
+    assert mounts == {'onboard-bu-test'}
+    assert 'admin-login-token' not in json.dumps(values)
+    assert 'scoped-execution-token' not in json.dumps(values)
+
+
+def test_existing_queue_without_business_unit_can_still_be_approved(setup):
+    client, values, calls, mounts = setup
+    request_id, signed = prepare(client)
+    key = admin.record_key(request_id)
+    record = json.loads(values[key])
+    record['plan'].pop('business_unit_id', None)
+    record['signature'] = admin.intent_signature(record)
+    values[key] = json.dumps(record)
+    assert login(client).status_code == 200
+    assert execute(client, signed).status_code == 200

@@ -10,7 +10,9 @@
     return result.token;
   }
   try {
-    const response = await fetch("/api/watsonx/config", { cache: "no-store" });
+    const workflow = new URLSearchParams(location.search).get("workflow");
+    if (workflow !== null && workflow !== "kv-mount") throw new Error("Unknown onboarding workflow.");
+    const response = await fetch("/api/watsonx/config" + (workflow === "kv-mount" ? "?workflow=kv-mount" : ""), { cache: "no-store" });
     if (!response.ok) throw new Error("The IBM agent connection has not been configured yet.");
     const { reviewOrigin, ...config } = await response.json();
     // Admin and review forms deliberately cannot be framed. Always open those

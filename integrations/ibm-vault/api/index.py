@@ -84,6 +84,7 @@ class Plan(BaseModel):
     mount: str = Field(min_length=2, max_length=100)
     secret_path: str = Field(default="", max_length=300)
     description: str = Field(default="", max_length=240)
+    business_unit_id: str = Field(default="", max_length=64, pattern=r"^[A-Za-z0-9_.-]*$")
     endpoint: str = Field(default="", max_length=400)
     method: Literal["GET", "LIST", "POST", "PUT", "PATCH", "DELETE"] = "POST"
 
@@ -229,6 +230,28 @@ def catalog():
 @app.post("/api/plans")
 async def prepare(plan: Plan, request: Request):
     tool_authorized(request)
+    return await issue_plan(plan)
+
+
+class KVMountInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    business_unit_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    mount: str = Field(min_length=2, max_length=100)
+    kv_version: Literal["1", "2"]
+
+    @field_validator("mount")
+    @classmethod
+    def valid_mount(cls, value):
+        return Plan.valid_mount(value)
+
+
+@app.post("/api/kv-mount-plans")
+async def prepare_kv_mount(body: KVMountInput, request: Request):
+    tool_authorized(request)
+    # This dedicated tool cannot select another action, engine, or secret payload.
+    plan = Plan(action="enable_engine", engine=f"kv-v{body.kv_version}",
+                mount=body.mount, business_unit_id=body.business_unit_id,
+                description="KV mount onboarding")
     return await issue_plan(plan)
 
 
@@ -546,6 +569,15 @@ def chat_config():
     for env, field in [("WXO_CRN", "crn"), ("WXO_DEPLOYMENT_PLATFORM", "deploymentPlatform")]:
         if os.getenv(env):
             config[field] = os.environ[env]
+    return config
+
+
+@app.get("/api/kv-mount-chat-config")
+def kv_mount_chat_config():
+    config = chat_config()
+    # Fail closed when the restricted agent is not deployed; never use the general agent.
+    config["chatOptions"] = {"agentId": required("WXO_KV_MOUNT_AGENT_ID"),
+                             "agentEnvironmentId": required("WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID")}
     return config
 
 

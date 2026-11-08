@@ -6,7 +6,7 @@ export function bridgeOrigin(): string {
   return url.origin;
 }
 
-export async function bridgeChat(path: "/api/chat-config" | "/api/chat-token", body?: { chat_session: string | null }) {
+export async function bridgeChat(path: "/api/chat-config" | "/api/kv-mount-chat-config" | "/api/chat-token", body?: { chat_session: string | null }) {
   const origin = bridgeOrigin();
   const response = await fetch(`${origin}${path}`, {
     method: body ? "POST" : "GET",

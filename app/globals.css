@@ -135,3 +135,8 @@ footer { display:flex; justify-content:space-between; margin-top:32px; padding-t
 .floating-chat-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-shrink:0; padding:16px 18px; background:var(--navy); color:#fff; }.floating-chat-header span { color:#c8d4e3; font-size:8px; font-weight:700; letter-spacing:.12em; }.floating-chat-header h2 { margin:5px 0 0; font-size:15px; }.floating-chat-header button { width:34px; height:34px; border:1px solid #ffffff55; border-radius:50%; background:transparent; color:white; font-size:24px; cursor:pointer; }
 .floating-chat-panel iframe { width:100%; min-height:0; flex:1; border:0; background:#0c1118; }.floating-chat-full { flex-shrink:0; padding:10px 16px; border-top:1px solid var(--line); color:var(--navy); font-size:11px; text-align:right; }
 @media(max-width:600px) { .floating-chat-launcher { right:16px; bottom:max(16px,env(safe-area-inset-bottom)); }.floating-chat-label { display:none; }.floating-chat-panel { right:16px; bottom:max(88px,calc(env(safe-area-inset-bottom) + 72px)); height:calc(100dvh - 112px); }.content { padding-bottom:100px; } }
+
+.kv-mount-workspace { display:flex; flex-direction:column; height:100dvh; background:#0c1118; }
+.kv-mount-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 24px; color:#fff; background:var(--navy); }
+.kv-mount-header h1 { margin:0; font-size:20px; }.kv-mount-header a { color:#d8e4f4; font-size:12px; text-decoration:none; }.kv-mount-header a:focus-visible { outline:3px solid #f97316; outline-offset:4px; }
+.kv-mount-chat { width:100%; flex:1; min-height:0; border:0; }

@@ -127,7 +127,7 @@ async def transition(request_id, before, after, actor, receipt=None):
 async def begin(ticket, actor):
     request_id = ticket_id(ticket)
     record = await get_record(request_id)
-    if record['plan'] != bridge().read_plan(ticket).model_dump():
+    if bridge().Plan.model_validate(record['plan']).model_dump() != bridge().read_plan(ticket).model_dump():
         raise HTTPException(409, "The plan does not match the queued request")
     await transition(request_id, 'pending', 'executing', actor['sub'])
     return request_id

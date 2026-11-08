@@ -405,3 +405,48 @@ def test_review_lookup_requires_same_origin_and_valid_id(client):
     assert client.post("/api/resolve", json={"review_id": "a" * 22}).status_code == 403
     assert client.post("/api/resolve", headers=HEADERS, json={"review_id": "a" * 22}).status_code == 400
     assert client.post("/api/resolve", headers=HEADERS, json={"review_id": "../escape"}).status_code == 422
+
+
+@pytest.mark.parametrize('version', ['1', '2'])
+def test_kv_mount_only_plan_collects_business_unit(client, monkeypatch, version):
+    def forbidden(*args, **kwargs):
+        pytest.fail('Planning must not contact Vault')
+    monkeypatch.setattr(bridge.httpx, 'AsyncClient', forbidden)
+    response = client.post('/api/kv-mount-plans', headers={'x-api-key': KEY}, json={
+        'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': version})
+    assert response.status_code == 200
+    plan = response.json()['plan']
+    assert plan['business_unit_id'] == 'BU-123'
+    assert plan['action'] == 'enable_engine' and plan['engine'] == 'kv-v' + version
+    assert plan['secret_path'] == '' and plan['endpoint'] == ''
+
+
+@pytest.mark.parametrize('changes', [
+    {'engine': 'database'}, {'action': 'create_secret'}, {'secret_data': {'password': 'blocked'}},
+    {'endpoint': 'config/root'}, {'kv_version': '3'}, {'kv_version': 'database'},
+    {'business_unit_id': ''}, {'business_unit_id': '<script>'}, {'mount': 'sys'},
+    {'mount': 'onboard-bu/kv'}, {'mount': 'other-mount'},
+])
+def test_kv_mount_only_rejects_other_activities(client, changes):
+    response = client.post('/api/kv-mount-plans', headers={'x-api-key': KEY}, json={
+        'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': '2', **changes})
+    assert response.status_code == 422
+
+
+def test_kv_mount_only_requires_tool_auth(client):
+    assert client.post('/api/kv-mount-plans', json={
+        'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': '2'}).status_code == 401
+
+
+def test_kv_mount_chat_config_never_falls_back_to_general_agent(client, monkeypatch):
+    for key, value in {'WXO_HOST_URL': 'https://ibm.example.com', 'WXO_ORCHESTRATION_ID': 'orch',
+                       'WXO_AGENT_ID': 'general', 'WXO_AGENT_ENVIRONMENT_ID': 'general-live'}.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv('WXO_KV_MOUNT_AGENT_ID', raising=False)
+    monkeypatch.delenv('WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID', raising=False)
+    assert client.get('/api/kv-mount-chat-config').status_code == 503
+    monkeypatch.setenv('WXO_KV_MOUNT_AGENT_ID', 'kv-only')
+    monkeypatch.setenv('WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID', 'kv-live')
+    assert client.get('/api/kv-mount-chat-config').json()['chatOptions'] == {
+        'agentId': 'kv-only', 'agentEnvironmentId': 'kv-live'}
+    assert client.get('/api/chat-config').json()['chatOptions']['agentId'] == 'general'
