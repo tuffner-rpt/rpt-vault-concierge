@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KVMountChat } from "../components/KVMountChat";
 
 export default function KVMountOnboarding() {
   return (
@@ -7,7 +8,7 @@ export default function KVMountOnboarding() {
         <h1>Create KV Mount</h1>
         <Link href="/">← Back to patterns</Link>
       </header>
-      <iframe className="kv-mount-chat" src="/vault-onboarding/chat?workflow=kv-mount" title="Ask RPT — KV mount onboarding only" referrerPolicy="no-referrer" />
+      <KVMountChat />
     </main>
   );
 }

@@ -87,7 +87,7 @@ $("execute").addEventListener("submit", async (event) => {
     if (reviewId) { ticket = (await call("/api/resolve", { review_id: reviewId })).ticket; reviewId = null; }
     const result = await call("/api/preview", { ticket }); plan = result.plan;
     const names = { enable_engine: "Enable secrets engine", create_secret: "Create KV v2 secret", engine_operation: "Run engine-specific operation", tune_engine: "Tune engine lease defaults", disable_engine: "Disable engine and remove its data" };
-    const fields = { Operation: names[plan.action], "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", "Business Unit ID (self-reported)": plan.business_unit_id, Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Endpoint: plan.endpoint, "HTTP method": plan.action === "engine_operation" ? plan.method : "", Description: plan.description };
+    const fields = { Operation: names[plan.action], "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", "Business Unit ID (self-reported)": plan.business_unit_id, "UserID (self-reported)": plan.user_id, Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Endpoint: plan.endpoint, "HTTP method": plan.action === "engine_operation" ? plan.method : "", Description: plan.description };
     for (const [label, value] of Object.entries(fields)) {
       if (!value) continue;
       const dt = document.createElement("dt"); dt.textContent = label;

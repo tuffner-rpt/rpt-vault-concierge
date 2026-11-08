@@ -23,7 +23,7 @@ function display() {
     const p=record.plan, card=text("article","","card request-card"), head=text("div","","request-head");
     head.append(text("h3",labels[p.action] || p.action),text("span",record.status.replaceAll("_"," "),"badge "+record.status));card.append(head,text("p",record.id,"request-id"));
     const dl=text("dl","","request-meta");
-    for(const [label,value] of Object.entries({"Business Unit ID (self-reported)":p.business_unit_id,Engine:p.engine,Mount:p.mount+"/",Path:p.secret_path || p.endpoint,Method:p.action==="engine_operation" ? p.method : "",Purpose:p.description,Submitted:new Date(record.created_at*1000).toLocaleString(),Requester:record.requester,Source:record.source})) {
+    for(const [label,value] of Object.entries({"Business Unit ID (self-reported)":p.business_unit_id,"UserID (self-reported)":p.user_id,Engine:p.engine,Mount:p.mount+"/",Path:p.secret_path || p.endpoint,Method:p.action==="engine_operation" ? p.method : "",Purpose:p.description,Submitted:new Date(record.created_at*1000).toLocaleString(),Requester:record.requester,Source:record.source})) {
       if(value)dl.append(text("dt",label),text("dd",value));
     }
     card.append(dl);

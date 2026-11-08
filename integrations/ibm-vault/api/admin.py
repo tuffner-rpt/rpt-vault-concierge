@@ -78,7 +78,7 @@ async def register(body):
     b = bridge()
     now = int(time.time())
     record = {"id": body["id"], "plan": body["plan"], "created_at": now, "updated_at": now,
-              "target": target(), "status": "pending", "source": "IBM Granite chat", "requester": "Not identity-verified"}
+              "target": target(), "status": "pending", "source": "Guided KV mount chat" if body["plan"].get("user_id") else "IBM Granite chat", "requester": "Not identity-verified"}
     record["signature"] = intent_signature(record)
     result = await b.review_store(["EVAL", CREATE, "2", record_key(record['id']), prefix(), json.dumps(record), str(now), record['id'], str(RETENTION)])
     if result != 1:

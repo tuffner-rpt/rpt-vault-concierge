@@ -85,6 +85,7 @@ class Plan(BaseModel):
     secret_path: str = Field(default="", max_length=300)
     description: str = Field(default="", max_length=240)
     business_unit_id: str = Field(default="", max_length=64, pattern=r"^[A-Za-z0-9_.-]*$")
+    user_id: str = Field(default="", max_length=128, pattern=r"^[A-Za-z0-9_.@-]*$")
     endpoint: str = Field(default="", max_length=400)
     method: Literal["GET", "LIST", "POST", "PUT", "PATCH", "DELETE"] = "POST"
 
@@ -99,7 +100,9 @@ class Plan(BaseModel):
     @classmethod
     def valid_mount(cls, value):
         prefix = os.getenv("ALLOWED_MOUNT_PREFIX", "onboard-")
-        if not prefix or not re.fullmatch(r"[a-z][a-z0-9_-]*", value) or not value.startswith(prefix):
+        # Preserve the explicitly requested Onboard- spelling; Vault paths are case-sensitive.
+        capitalized = prefix == "onboard-" and re.fullmatch(r"Onboard-[a-z0-9][a-z0-9_-]*", value)
+        if not prefix or not (capitalized or (re.fullmatch(r"[a-z][a-z0-9_-]*", value) and value.startswith(prefix))):
             raise ValueError(f"Mount must be a single lowercase segment starting with {prefix}")
         if value in {"sys", "auth", "identity", "cubbyhole"}:
             raise ValueError("Reserved mount")
@@ -252,6 +255,25 @@ async def prepare_kv_mount(body: KVMountInput, request: Request):
     plan = Plan(action="enable_engine", engine=f"kv-v{body.kv_version}",
                 mount=body.mount, business_unit_id=body.business_unit_id,
                 description="KV mount onboarding")
+    return await issue_plan(plan)
+
+
+class KVMountIntake(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mount: str = Field(min_length=9, max_length=100, pattern=r"^Onboard-[a-z0-9][a-z0-9_-]*$")
+    business_unit_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    user_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$")
+
+
+@app.post("/api/kv-mount-intake")
+async def kv_mount_intake(body: KVMountIntake, request: Request):
+    # A separate credential grants only this three-field intake, not generic planning.
+    expected = required("KV_MOUNT_INTAKE_KEY")
+    if len(expected) < 32 or not hmac.compare_digest(request.headers.get("x-kv-mount-key", ""), expected):
+        raise HTTPException(401, "Invalid KV intake credentials")
+    plan = Plan(action="enable_engine", engine="kv-v2", mount=body.mount,
+                business_unit_id=body.business_unit_id, user_id=body.user_id,
+                description="Guided KV mount onboarding")
     return await issue_plan(plan)
 
 

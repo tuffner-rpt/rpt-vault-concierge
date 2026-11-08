@@ -450,3 +450,40 @@ def test_kv_mount_chat_config_never_falls_back_to_general_agent(client, monkeypa
     assert client.get('/api/kv-mount-chat-config').json()['chatOptions'] == {
         'agentId': 'kv-only', 'agentEnvironmentId': 'kv-live'}
     assert client.get('/api/chat-config').json()['chatOptions']['agentId'] == 'general'
+
+
+@pytest.fixture
+def intake_key(monkeypatch):
+    monkeypatch.setenv('KV_MOUNT_INTAKE_KEY', 'i' * 64)
+    return {'x-kv-mount-key': 'i' * 64}
+
+
+def intake_payload(**changes):
+    return {'mount': 'Onboard-payments', 'business_unit_id': 'BU-123', 'user_id': 'developer@example.com', **changes}
+
+
+def test_guided_kv_intake_preserves_case_and_records_identity(client, intake_key):
+    response = client.post('/api/kv-mount-intake', headers=intake_key, json=intake_payload())
+    assert response.status_code == 200
+    plan = response.json()['plan']
+    assert plan['mount'] == 'Onboard-payments'
+    assert plan['business_unit_id'] == 'BU-123' and plan['user_id'] == 'developer@example.com'
+    assert plan['action'] == 'enable_engine' and plan['engine'] == 'kv-v2'
+    assert plan['secret_path'] == '' and plan['endpoint'] == ''
+
+
+@pytest.mark.parametrize('changes', [
+    {'mount': 'onboard-payments'}, {'mount': 'Onboard-../sys'}, {'mount': 'Onboard-foo/bar'},
+    {'mount': 'Onboard-'}, {'mount': 'Onboard-Payments'}, {'business_unit_id': ''}, {'user_id': ''},
+    {'user_id': '<script>'}, {'engine': 'database'}, {'action': 'create_secret'},
+    {'kv_version': '1'}, {'secret_data': {'password': 'blocked'}},
+])
+def test_guided_intake_rejects_other_actions_and_bad_fields(client, intake_key, changes):
+    assert client.post('/api/kv-mount-intake', headers=intake_key, json=intake_payload(**changes)).status_code == 422
+
+
+def test_intake_credential_cannot_mint_generic_plans(client, intake_key):
+    assert client.post('/api/plans', headers=intake_key, json=plan_input()).status_code == 401
+    assert client.post('/api/kv-mount-plans', headers=intake_key, json={
+        'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': '1'}).status_code == 401
+    assert client.post('/api/kv-mount-intake', headers={'x-api-key': KEY}, json=intake_payload()).status_code == 401
