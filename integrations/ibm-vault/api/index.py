@@ -277,6 +277,31 @@ async def kv_mount_intake(body: KVMountIntake, request: Request):
     return await issue_plan(plan)
 
 
+class KVSecretIntake(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mount: str = Field(min_length=9, max_length=100, pattern=r"^(?:Onboard|onboard)-[a-z0-9][a-z0-9_-]*$")
+    secret_path: str = Field(min_length=1, max_length=300)
+    business_unit_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    user_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$")
+
+    @field_validator("secret_path")
+    @classmethod
+    def valid_secret_path(cls, value):
+        return Plan.valid_path(value)
+
+
+@app.post("/api/kv-secret-intake")
+async def kv_secret_intake(body: KVSecretIntake, request: Request):
+    # Metadata only. Values are entered later in the administrator's secure form.
+    expected = required("KV_SECRET_INTAKE_KEY")
+    if len(expected) < 32 or not hmac.compare_digest(request.headers.get("x-kv-secret-key", ""), expected):
+        raise HTTPException(401, "Invalid KV secret intake credentials")
+    plan = Plan(action="create_secret", engine="kv-v2", mount=body.mount, secret_path=body.secret_path,
+                business_unit_id=body.business_unit_id, user_id=body.user_id,
+                description="Guided KV secret onboarding")
+    return await issue_plan(plan)
+
+
 async def review_store(command: list):
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=False, trust_env=False) as client:

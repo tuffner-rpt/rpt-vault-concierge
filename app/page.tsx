@@ -67,7 +67,7 @@ export default function Home() {
 
           <section className="template-grid" aria-label="Secret templates">
             {templates.map((template) => (
-              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : "/vault-onboarding")}>
+              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : "/vault-onboarding")}>
                 <span className={`tile-icon ${template.accent}`}>{template.icon}</span>
                 <span className="tile-arrow">↗</span>
                 <strong>{template.title}</strong>

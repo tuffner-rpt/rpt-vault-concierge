@@ -487,3 +487,48 @@ def test_intake_credential_cannot_mint_generic_plans(client, intake_key):
     assert client.post('/api/kv-mount-plans', headers=intake_key, json={
         'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': '1'}).status_code == 401
     assert client.post('/api/kv-mount-intake', headers={'x-api-key': KEY}, json=intake_payload()).status_code == 401
+
+
+@pytest.fixture
+def secret_intake_key(monkeypatch):
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    return {'x-kv-secret-key': 'v' * 64}
+
+
+def secret_intake_payload(**changes):
+    return {'mount': 'Onboard-payments', 'secret_path': 'app/database',
+            'business_unit_id': 'BU-123', 'user_id': 'developer@example.com', **changes}
+
+
+@pytest.mark.parametrize('mount', ['Onboard-payments', 'onboard-payments'])
+def test_secret_intake_is_create_only_metadata(client, secret_intake_key, monkeypatch, mount):
+    def forbidden(*args, **kwargs):
+        pytest.fail('Secret planning must not contact Vault')
+    monkeypatch.setattr(bridge.httpx, 'AsyncClient', forbidden)
+    response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=secret_intake_payload(mount=mount))
+    assert response.status_code == 200
+    plan = response.json()['plan']
+    assert plan['action'] == 'create_secret' and plan['engine'] == 'kv-v2'
+    assert plan['mount'] == mount and plan['secret_path'] == 'app/database'
+    assert plan['business_unit_id'] == 'BU-123' and plan['user_id'] == 'developer@example.com'
+    assert 'secret_data' not in plan and plan['endpoint'] == ''
+
+
+@pytest.mark.parametrize('changes', [
+    {'action': 'enable_engine'}, {'engine': 'database'}, {'kv_version': '1'},
+    {'secret_data': {'password': 'must-not-be-accepted'}}, {'operation_json': '{}'},
+    {'secret_path': ''}, {'secret_path': '../sys'}, {'secret_path': '/app'},
+    {'secret_path': 'a//b'}, {'secret_path': 'a/..'}, {'secret_path': 'a/'},
+    {'secret_path': 'a?overwrite=true'}, {'secret_path': 'a%2fb'},
+    {'business_unit_id': ''}, {'user_id': ''}, {'mount': 'sys'},
+])
+def test_secret_intake_rejects_other_operations_and_values(client, secret_intake_key, changes):
+    response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=secret_intake_payload(**changes))
+    assert response.status_code == 422
+    assert 'must-not-be-accepted' not in response.text
+
+
+def test_secret_credential_does_not_allow_other_workflows(client, secret_intake_key, intake_key):
+    assert client.post('/api/plans', headers=secret_intake_key, json=plan_input()).status_code == 401
+    assert client.post('/api/kv-mount-intake', headers=secret_intake_key, json=intake_payload()).status_code == 401
+    assert client.post('/api/kv-secret-intake', headers=intake_key, json=secret_intake_payload()).status_code == 401

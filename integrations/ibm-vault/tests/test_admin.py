@@ -237,3 +237,24 @@ def test_existing_queue_without_business_unit_can_still_be_approved(setup):
     values[key] = json.dumps(record)
     assert login(client).status_code == 200
     assert execute(client, signed).status_code == 200
+
+
+def test_guided_secret_intake_uses_admin_review_and_cas_zero(setup, monkeypatch):
+    client, values, calls, mounts = setup
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    mounts.add('Onboard-secret-test')
+    response = client.post('/api/kv-secret-intake', headers={'x-kv-secret-key': 'v' * 64}, json={
+        'mount': 'Onboard-secret-test', 'secret_path': 'app/database',
+        'business_unit_id': 'BU-789', 'user_id': 'test-developer'})
+    assert response.status_code == 200 and not calls
+    review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
+    signed = client.post('/api/resolve', headers=HEADERS, json={'review_id': review}).json()['ticket']
+    assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 401
+    assert login(client).status_code == 200
+    queue = client.get('/api/admin/requests').json()['requests']
+    assert queue[0]['source'] == 'Guided KV secret chat'
+    assert queue[0]['plan']['user_id'] == 'test-developer'
+    assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 200
+    write = next(request for request in calls if request.url.path.endswith('/data/app/database'))
+    assert json.loads(write.content) == {'options': {'cas': 0}, 'data': {'password': 'test-value'}}
+    assert 'test-value' not in json.dumps(values)
