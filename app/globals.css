@@ -35,6 +35,8 @@ button, a { -webkit-tap-highlight-color:transparent; }
 .hero { max-width:680px; }
 .hero h1 { margin:0 0 13px; font-family:Georgia, 'Times New Roman', serif; font-size:clamp(36px,4vw,54px); font-weight:500; line-height:1.05; letter-spacing:-.038em; }
 .hero p { margin:0; max-width:610px; color:var(--muted); font-size:15px; line-height:1.65; }
+#catalog.hero { max-width:none; container-type:inline-size; }
+#catalog.hero h1 { white-space:nowrap; font-size:clamp(16px,6cqi,54px); }
 .template-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-top:37px; }
 .template-card { position:relative; min-height:218px; padding:22px; text-align:left; border:1px solid #e1e6e2; border-radius:12px; background:white; box-shadow:0 2px 8px rgba(25,40,32,.025); cursor:pointer; transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
 .template-card:hover { transform:translateY(-3px); border-color:#f6a56c; box-shadow:0 16px 34px rgba(11,31,58,.11); }
