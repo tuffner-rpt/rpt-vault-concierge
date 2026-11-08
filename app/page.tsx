@@ -11,15 +11,15 @@ type Template = {
   title: string;
   description: string;
   accent: string;
-  lease: string;
   kind: string;
 };
 
 const templates: Template[] = [
-  { id: "api-key", icon: "⌁", title: "API key", description: "Generate a scoped key for a service-to-service integration.", accent: "mint", lease: "90 days", kind: "kv-v2" },
-  { id: "database", icon: "◉", title: "Database credential", description: "Create a rotating credential for PostgreSQL or MySQL.", accent: "blue", lease: "24 hours", kind: "dynamic" },
-  { id: "cloud", icon: "◇", title: "Cloud access", description: "Provision short-lived credentials for a cloud workload.", accent: "violet", lease: "8 hours", kind: "dynamic" },
-  { id: "certificate", icon: "✦", title: "TLS certificate", description: "Issue a certificate from the internal PKI authority.", accent: "amber", lease: "30 days", kind: "pki" },
+  { id: "kv-mount", icon: "⌁", title: "Create KV Mount", description: "Set up a versioned KV secrets engine at your chosen mount path.", accent: "mint", kind: "kv-v2" },
+  { id: "kv-secret", icon: "◇", title: "Create KV Secret", description: "Add a new secret to an existing KV v2 mount.", accent: "blue", kind: "kv-v2" },
+  { id: "kubernetes-secret", icon: "⎈", title: "Create Kubernetes Secret", description: "Request Vault-managed credentials for a Kubernetes workload.", accent: "violet", kind: "kubernetes" },
+  { id: "database-secret", icon: "◉", title: "Create Database Secret", description: "Request database credentials from a configured Vault database engine.", accent: "blue", kind: "database" },
+  { id: "pki-certificate", icon: "✦", title: "Create PKI Certificate", description: "Request a certificate from a configured Vault PKI role.", accent: "amber", kind: "pki" },
 ];
 
 export default function Home() {
@@ -72,7 +72,7 @@ export default function Home() {
                 <span className="tile-arrow">↗</span>
                 <strong>{template.title}</strong>
                 <span className="tile-description">{template.description}</span>
-                <span className="tile-meta"><i /> {template.kind} <em>{template.lease}</em></span>
+                <span className="tile-meta"><i /> {template.kind} </span>
               </button>
             ))}
           </section>
