@@ -9,18 +9,17 @@ export async function POST(request: Request) {
     const raw = await request.text();
     if (raw.length > 2048) return NextResponse.json({ error: "Request too large" }, { status: 413, headers: chatHeaders });
     const body = JSON.parse(raw);
-    if (!body || Array.isArray(body) || Object.keys(body).length !== 4 ||
-      typeof body.mount !== "string" || body.mount.length > 100 || !/^(?:Onboard|onboard)-[a-z0-9][a-z0-9_-]*$/.test(body.mount) ||
+    if (!body || Array.isArray(body) || Object.keys(body).length !== 3 ||
       typeof body.secret_path !== "string" || body.secret_path.length < 1 || body.secret_path.length > 300 || !/^[A-Za-z0-9_.@~/-]+$/.test(body.secret_path) || body.secret_path.split("/").some((part: string) => !part || part === "." || part === "..") ||
       typeof body.business_unit_id !== "string" || body.business_unit_id.length > 64 || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(body.business_unit_id) ||
       typeof body.user_id !== "string" || body.user_id.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.@-]*$/.test(body.user_id)) {
-      return NextResponse.json({ error: "Check the existing mount, secret path, Business Unit ID and UserID." }, { status: 422, headers: chatHeaders });
+      return NextResponse.json({ error: "Check the secret path, Business Unit ID and UserID. Only onboard-concierge is allowed." }, { status: 422, headers: chatHeaders });
     }
     const key = process.env.KV_SECRET_INTAKE_KEY;
     if (!key || key.length < 32) throw new Error("KV intake unavailable");
     const response = await fetch(`${bridgeOrigin()}/api/kv-secret-intake`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-kv-secret-key": key },
-      body: JSON.stringify(body), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ ...body, mount: "onboard-concierge" }), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw new Error("KV intake unavailable");
     const result = await response.json();

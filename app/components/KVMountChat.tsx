@@ -15,13 +15,11 @@ const mountRules: InputRule[] = [
 ];
 
 const secretQuestions = [
-  "What is the KV Mount Name where you want to create the secret?",
   "What is the name or path of the KV secret you are requesting?",
   "Enter your Business Unit ID",
   "Enter your UserID",
 ];
 const secretRules: InputRule[] = [
-  { pattern: /^(?:Onboard|onboard)-[a-z0-9][a-z0-9_-]*$/, max: 100, hint: "Enter the exact existing KV v2 mount, for example Onboard-payments or onboard-payments." },
   { pattern: /^[A-Za-z0-9_.@~/-]+$/, max: 300, validate: value => value.split("/").every(part => part !== "" && part !== "." && part !== ".."), hint: "Enter a relative secret name/path, such as app/database. Do not enter secret values." },
   mountRules[1],
   mountRules[2],
@@ -32,7 +30,7 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
   const secret = mode === "secret";
   const questions = secret ? secretQuestions : mountQuestions;
   const rules = secret ? secretRules : mountRules;
-  const fields = secret ? ["mount", "secret_path", "business_unit_id", "user_id"] : ["mount", "business_unit_id", "user_id"];
+  const fields = secret ? ["secret_path", "business_unit_id", "user_id"] : ["mount", "business_unit_id", "user_id"];
   const noun = secret ? "secret" : "mount";
   const [answers, setAnswers] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
@@ -81,18 +79,18 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
 
   return (
     <section className="kv-guided-chat" aria-label={`Ask RPT KV ${noun} onboarding`}>
-      <div className="kv-chat-brand">Ask RPT <span>KV {noun} onboarding</span></div>
+      <div className="kv-chat-brand">Ask RPT <span>KV {noun} onboarding{secret ? " · Mount: onboard-concierge" : ""}</span></div>
       <div className="kv-chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {questions.slice(0, Math.min(step + 1, questions.length)).map((question, index) => (
           <div className="kv-chat-exchange" key={question}>
-            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{rules[0].hint}</small> : null}</div>
+            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under onboard-concierge/. " : ""}{rules[0].hint}</small> : null}</div>
             {answers[index] ? <div className="kv-chat-bubble user"><strong>You</strong><p>{answers[index]}</p></div> : null}
           </div>
         ))}
         {step === questions.length ? (
           <div className="kv-chat-review">
             <h2>Review your KV {noun} request</h2>
-            <dl>{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
+            <dl>{secret ? <><dt>KV Mount Name</dt><dd>onboard-concierge</dd></> : null}{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
             {status === "submitted" ? <><p role="status">Your request is pending administrator review. No Vault change has been made.</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">Open secure review ↗</a></> : <>
               {secret ? <p>Secret values are entered only in the secure review form. This request cannot overwrite an existing secret.</p> : null}
               <p>The Business Unit ID and UserID are self-reported. An administrator must approve and execute the request with their Vault permissions.</p>

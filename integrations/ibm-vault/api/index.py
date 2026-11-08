@@ -279,7 +279,7 @@ async def kv_mount_intake(body: KVMountIntake, request: Request):
 
 class KVSecretIntake(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    mount: str = Field(min_length=9, max_length=100, pattern=r"^(?:Onboard|onboard)-[a-z0-9][a-z0-9_-]*$")
+    mount: Literal["onboard-concierge"] = "onboard-concierge"
     secret_path: str = Field(min_length=1, max_length=300)
     business_unit_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
     user_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$")

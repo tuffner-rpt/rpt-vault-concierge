@@ -242,9 +242,9 @@ def test_existing_queue_without_business_unit_can_still_be_approved(setup):
 def test_guided_secret_intake_uses_admin_review_and_cas_zero(setup, monkeypatch):
     client, values, calls, mounts = setup
     monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
-    mounts.add('Onboard-secret-test')
+    mounts.add('onboard-concierge')
     response = client.post('/api/kv-secret-intake', headers={'x-kv-secret-key': 'v' * 64}, json={
-        'mount': 'Onboard-secret-test', 'secret_path': 'app/database',
+        'mount': 'onboard-concierge', 'secret_path': 'app/database',
         'business_unit_id': 'BU-789', 'user_id': 'test-developer'})
     assert response.status_code == 200 and not calls
     review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]

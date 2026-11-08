@@ -496,11 +496,11 @@ def secret_intake_key(monkeypatch):
 
 
 def secret_intake_payload(**changes):
-    return {'mount': 'Onboard-payments', 'secret_path': 'app/database',
+    return {'mount': 'onboard-concierge', 'secret_path': 'app/database',
             'business_unit_id': 'BU-123', 'user_id': 'developer@example.com', **changes}
 
 
-@pytest.mark.parametrize('mount', ['Onboard-payments', 'onboard-payments'])
+@pytest.mark.parametrize('mount', ['onboard-concierge'])
 def test_secret_intake_is_create_only_metadata(client, secret_intake_key, monkeypatch, mount):
     def forbidden(*args, **kwargs):
         pytest.fail('Secret planning must not contact Vault')
@@ -515,6 +515,7 @@ def test_secret_intake_is_create_only_metadata(client, secret_intake_key, monkey
 
 
 @pytest.mark.parametrize('changes', [
+    {'mount': 'onboard-other'}, {'mount': 'Onboard-concierge'}, {'mount': 'onboard-concierge/other'},
     {'action': 'enable_engine'}, {'engine': 'database'}, {'kv_version': '1'},
     {'secret_data': {'password': 'must-not-be-accepted'}}, {'operation_json': '{}'},
     {'secret_path': ''}, {'secret_path': '../sys'}, {'secret_path': '/app'},
@@ -532,3 +533,11 @@ def test_secret_credential_does_not_allow_other_workflows(client, secret_intake_
     assert client.post('/api/plans', headers=secret_intake_key, json=plan_input()).status_code == 401
     assert client.post('/api/kv-mount-intake', headers=secret_intake_key, json=intake_payload()).status_code == 401
     assert client.post('/api/kv-secret-intake', headers=intake_key, json=secret_intake_payload()).status_code == 401
+
+
+def test_secret_intake_defaults_to_concierge_mount(client, secret_intake_key):
+    body = secret_intake_payload()
+    body.pop('mount')
+    response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=body)
+    assert response.status_code == 200
+    assert response.json()['plan']['mount'] == 'onboard-concierge'
