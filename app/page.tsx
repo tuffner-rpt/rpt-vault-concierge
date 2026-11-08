@@ -62,7 +62,7 @@ export default function Home() {
         <section className="content">
           <section className="hero" id="catalog">
             <h1>RPT Vault Onboarding Patterns - Demo</h1>
-            <p>Choose a Vault pattern, then prepare your request in IBM chat for administrator review.</p>
+            <p>Choose a Vault Onboarding Pattern Tile Down Below:</p>
           </section>
 
           <section className="template-grid" aria-label="Secret templates">
