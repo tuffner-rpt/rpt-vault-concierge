@@ -26,3 +26,6 @@ body.onboarding-page{color-scheme:light;min-height:100vh;background:#f6f8fc;colo
 .onboarding-page a{color:#173f6b}.onboarding-page a.brand{color:#fff}
 .onboarding-page pre{background:#e7edf6;color:#0b1f3a}
 .onboarding-page summary,.onboarding-page #confirmation-phrase{color:#9a3412}
+
+.onboarding-page .brand{display:inline-flex;align-items:center;gap:12px;font-size:20px;letter-spacing:-.02em}
+.onboarding-page .brand-logo{display:block;flex-shrink:0;width:40px;height:40px;object-fit:contain;border-radius:50%;background:#fff}

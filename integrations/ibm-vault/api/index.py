@@ -690,7 +690,7 @@ def chat_page():
 
 @app.get("/assets/{name}")
 def asset(name: str):
-    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css", "fulfilled.js"}:
+    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css", "fulfilled.js", "rpt-logo.jpeg"}:
         raise HTTPException(404)
     return FileResponse(ROOT / "web" / name)
 
