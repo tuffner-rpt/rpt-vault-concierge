@@ -15,7 +15,7 @@ const mountRules: InputRule[] = [
 ];
 
 const secretQuestions = [
-  "What is the name or path of the KV secret you are requesting?",
+  "What is the name the KV secret path under /admin/onboard-concierge you are requesting?",
   "Enter your Business Unit ID",
   "Enter your UserID",
 ];
@@ -83,7 +83,7 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
       <div className="kv-chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {questions.slice(0, Math.min(step + 1, questions.length)).map((question, index) => (
           <div className="kv-chat-exchange" key={question}>
-            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/." : rules[0].hint}</small> : null}</div>
+            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/xxx." : rules[0].hint}</small> : null}</div>
             {answers[index] ? <div className="kv-chat-bubble user"><strong>You</strong><p>{answers[index]}</p></div> : null}
           </div>
         ))}
