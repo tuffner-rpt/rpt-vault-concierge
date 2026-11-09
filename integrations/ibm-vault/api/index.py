@@ -316,6 +316,39 @@ async def kv_secret_intake(body: KVSecretIntake, request: Request):
     return {**result, "namespace": "admin"}
 
 
+class KVSecretListInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    vault_token: SecretStr = Field(min_length=1, max_length=4096)
+    prefix: str = Field(default="", max_length=300)
+
+    @field_validator("prefix")
+    @classmethod
+    def valid_prefix(cls, value):
+        return Plan.valid_path(value)
+
+
+@app.post("/api/kv-secret-list")
+async def list_kv_secrets(body: KVSecretListInput, request: Request):
+    expected = required("KV_SECRET_LIST_KEY")
+    if len(expected) < 32 or not hmac.compare_digest(request.headers.get("x-kv-list-key", ""), expected):
+        raise HTTPException(401, "Invalid KV listing credentials")
+    if os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
+        raise HTTPException(503, "KV listing is restricted to /admin/onboard-concierge")
+    token = body.vault_token.get_secret_value()
+    validate_token(token)
+    async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
+        result = await vault_request(client, "LIST", "onboard-concierge/metadata/" + body.prefix, token, allow_missing=True)
+    data = result.get("data", {}) if isinstance(result, dict) else {}
+    if not isinstance(data, dict):
+        raise HTTPException(502, "Vault returned an invalid key listing")
+    keys = data.get("keys", [])
+    if not isinstance(keys, list) or any(not isinstance(key, str) for key in keys):
+        raise HTTPException(502, "Vault returned an invalid key listing")
+    # Return names only, never values, custom metadata, lease data, or credentials.
+    keys = sorted(set(key for key in keys if re.fullmatch(r"[A-Za-z0-9_.@~-]+/?", key) and key.rstrip("/") not in {".", ".."}))
+    return {"namespace": "admin", "mount": "onboard-concierge", "prefix": body.prefix, "keys": keys}
+
+
 async def review_store(command: list):
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=False, trust_env=False) as client:

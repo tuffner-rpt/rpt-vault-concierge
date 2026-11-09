@@ -17,6 +17,7 @@ type Template = {
 const templates: Template[] = [
   { id: "kv-mount", icon: "⌁", title: "Create KV Mount", description: "Set up a KV v1 or KV v2 secrets engine at your chosen mount path.", accent: "mint", kind: "kv-v1 / kv-v2" },
   { id: "kv-secret", icon: "◇", title: "Create KV Secret", description: "Add a new key under the /admin/onboard-concierge KV v2 mount.", accent: "blue", kind: "kv-v2" },
+  { id: "list-kv-secrets", icon: "☷", title: "List KV Secrets", description: "Browse key names only under /admin/onboard-concierge.", accent: "amber", kind: "kv-v2" },
 ];
 
 export default function Home() {
@@ -65,7 +66,7 @@ export default function Home() {
 
           <section className="template-grid" aria-label="Secret templates">
             {templates.map((template) => (
-              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : "/vault-onboarding")}>
+              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : template.id === "list-kv-secrets" ? "/kv-secrets" : "/vault-onboarding")}>
                 <span className={`tile-icon ${template.accent}`}>{template.icon}</span>
                 <span className="tile-arrow">↗</span>
                 <strong>{template.title}</strong>

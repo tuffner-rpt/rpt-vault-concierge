@@ -563,3 +563,65 @@ def test_guided_secret_plan_cannot_be_retargeted_after_creation(client, secret_i
 def test_guided_secret_intake_rejects_client_namespace(client, secret_intake_key):
     assert client.post('/api/kv-secret-intake', headers=secret_intake_key,
                        json=secret_intake_payload(namespace='other')).status_code == 422
+
+
+@pytest.fixture
+def list_key(monkeypatch):
+    monkeypatch.setenv('VAULT_NAMESPACE', 'admin')
+    monkeypatch.setenv('KV_SECRET_LIST_KEY', 'l' * 64)
+    return {'x-kv-list-key': 'l' * 64}
+
+
+@pytest.mark.parametrize('prefix', ['', 'app', 'app/database'])
+def test_list_uses_only_fixed_mount_metadata_and_never_returns_values(client, list_key, monkeypatch, prefix):
+    calls = fake_vault(monkeypatch, [(200, {'data': {'keys': ['database', 'app/', '../escape/', 'safe', 'bad/name', '..'], 'password': 'never-return-this'}, 'auth': {'client_token': 'never-return-token'}})])
+    response = client.post('/api/kv-secret-list', headers=list_key, json={'vault_token': 'hvs.caller-list-token', 'prefix': prefix})
+    assert response.status_code == 200
+    assert response.json() == {'namespace': 'admin', 'mount': 'onboard-concierge', 'prefix': prefix, 'keys': ['app/', 'database', 'safe']}
+    assert len(calls) == 1 and calls[0].method == 'LIST'
+    assert calls[0].url.path == '/v1/onboard-concierge/metadata/' + prefix
+    assert calls[0].headers['X-Vault-Namespace'] == 'admin'
+    assert calls[0].headers['X-Vault-Token'] == 'hvs.caller-list-token'
+    assert 'never-return' not in response.text
+    assert 'hvs.caller-list-token' not in response.text
+
+
+@pytest.mark.parametrize('changes', [
+    {'mount': 'other'}, {'namespace': 'other'}, {'host': 'https://other.example'},
+    {'method': 'GET'}, {'endpoint': 'data/password'}, {'secret_data': {'x': 'blocked'}},
+    {'prefix': '../sys'}, {'prefix': '/admin/other'}, {'prefix': 'a//b'}, {'prefix': 'a/..'},
+    {'prefix': 'a%2fb'}, {'prefix': 'a?list=true'}, {'prefix': 'a/'},
+])
+def test_list_rejects_escape_paths_and_other_targets(client, list_key, monkeypatch, changes):
+    def forbidden(*args, **kwargs):
+        pytest.fail('Invalid listing must not contact Vault')
+    monkeypatch.setattr(bridge.httpx, 'AsyncClient', forbidden)
+    response = client.post('/api/kv-secret-list', headers=list_key, json={'vault_token': 'hvs.caller-list-token', **changes})
+    assert response.status_code == 422
+    assert 'hvs.caller-list-token' not in response.text
+
+
+@pytest.mark.parametrize('namespace', ['', 'engineering', 'admin/child', 'Admin'])
+def test_list_cannot_target_other_namespaces(client, list_key, monkeypatch, namespace):
+    monkeypatch.setenv('VAULT_NAMESPACE', namespace)
+    assert client.post('/api/kv-secret-list', headers=list_key, json={'vault_token': 'hvs.list-token'}).status_code == 503
+
+
+def test_listing_requires_dedicated_key_and_caller_vault_permissions(client, list_key, monkeypatch):
+    assert client.post('/api/kv-secret-list', json={'vault_token': 'hvs.list-token'}).status_code == 401
+    assert client.post('/api/kv-secret-list', headers={'x-api-key': KEY}, json={'vault_token': 'hvs.list-token'}).status_code == 401
+    calls = fake_vault(monkeypatch, [(403, {'errors': ['permission denied']})])
+    response = client.post('/api/kv-secret-list', headers=list_key, json={'vault_token': 'hvs.no-list-access'})
+    assert response.status_code == 403 and len(calls) == 1
+    assert 'hvs.no-list-access' not in response.text
+
+
+def test_empty_folder_listing(client, list_key, monkeypatch):
+    calls = fake_vault(monkeypatch, [(404, {'errors': []})])
+    response = client.post('/api/kv-secret-list', headers=list_key, json={'vault_token': 'hvs.list-token'})
+    assert response.status_code == 200 and response.json()['keys'] == []
+    assert calls[0].method == 'LIST'
+
+
+def test_listing_key_cannot_create_plans(client, list_key):
+    assert client.post('/api/plans', headers=list_key, json=plan_input()).status_code == 401
