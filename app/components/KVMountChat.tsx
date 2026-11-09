@@ -20,7 +20,7 @@ const secretQuestions = [
   "Enter your UserID",
 ];
 const secretRules: InputRule[] = [
-  { pattern: /^[A-Za-z0-9_.@~/-]+$/, max: 300, validate: value => value.split("/").every(part => part !== "" && part !== "." && part !== ".."), hint: "Enter a relative secret name/path, such as app/database. Do not enter secret values." },
+  { pattern: /^[A-Za-z0-9_.@~/-]+$/, max: 300, validate: value => value.split("/").every(part => part !== "" && part !== "." && part !== ".."), hint: "Enter a valid key name or path." },
   mountRules[1],
   mountRules[2],
 ];
@@ -83,7 +83,7 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
       <div className="kv-chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {questions.slice(0, Math.min(step + 1, questions.length)).map((question, index) => (
           <div className="kv-chat-exchange" key={question}>
-            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/. " : ""}{rules[0].hint}</small> : null}</div>
+            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/." : rules[0].hint}</small> : null}</div>
             {answers[index] ? <div className="kv-chat-bubble user"><strong>You</strong><p>{answers[index]}</p></div> : null}
           </div>
         ))}
@@ -104,9 +104,8 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
         {error ? <p role="alert" className="kv-chat-error">{error}</p> : null}
         {step < questions.length ? <form onSubmit={answer}>
           <label htmlFor="kv-answer">{questions[step]}</label>
-          <div className="kv-chat-input-row"><input ref={input} id="kv-answer" value={draft} onChange={event => { setDraft(event.target.value); setError(""); }} placeholder={fields[step] === "mount" ? "Onboard-xxx" : fields[step] === "secret_path" ? "app/database" : labels[fields[step]]} maxLength={rules[step].max} autoComplete="off" spellCheck={false} aria-describedby={step === 0 ? "kv-mount-format" : undefined} /><button type="submit" disabled={!draft.trim()}>Send →</button></div>
-          {step === 0 ? <small id="kv-mount-format">{rules[0].hint}</small> : null}
-          {secret ? <small>Do not enter secret values in this chat.</small> : null}
+          <div className="kv-chat-input-row"><input ref={input} id="kv-answer" value={draft} onChange={event => { setDraft(event.target.value); setError(""); }} placeholder={fields[step] === "mount" ? "Onboard-xxx" : fields[step] === "secret_path" ? "app/database" : labels[fields[step]]} maxLength={rules[step].max} autoComplete="off" spellCheck={false} aria-describedby={!secret && step === 0 ? "kv-mount-format" : undefined} /><button type="submit" disabled={!draft.trim()}>Send →</button></div>
+          {!secret && step === 0 ? <small id="kv-mount-format">{rules[0].hint}</small> : null}
         </form> : null}
       </div>
     </section>
