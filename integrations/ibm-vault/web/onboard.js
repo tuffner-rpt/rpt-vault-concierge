@@ -90,7 +90,6 @@ $("execute").addEventListener("submit", async (event) => {
     const selfService = plan.approval_mode === "self_service";
     if (selfService) {
       document.title = "Create KV Secret · RPT Vault";
-      $("page-eyebrow").textContent = "KV SECRET CREATION";
       $("page-title").textContent = "Create your KV secret.";
       $("page-intro").textContent = "Enter the secret values and your scoped Vault token to create this key under /admin/onboard-concierge. No separate administrator approval is required.";
       const steps = $("page-steps").children;
