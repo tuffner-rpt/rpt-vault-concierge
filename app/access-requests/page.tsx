@@ -50,7 +50,6 @@ export default function AccessRequestsPage() {
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <a className="side-item" href="/"><span>⌂</span> Secret catalog</a>
-          <a className="side-item" href="/access-requests"><span>◫</span> My secrets <b>{requests.length}</b></a>
           <a className="side-item active" href="/access-requests"><span>◎</span> Access requests</a>
           <a className="side-item" href="/requests-fulfilled"><span>✓</span> Requests fulfilled</a>
           <div className="side-label section-gap">Resources</div>
