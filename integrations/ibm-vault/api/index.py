@@ -86,6 +86,7 @@ class Plan(BaseModel):
     description: str = Field(default="", max_length=240)
     business_unit_id: str = Field(default="", max_length=64, pattern=r"^[A-Za-z0-9_.-]*$")
     user_id: str = Field(default="", max_length=128, pattern=r"^[A-Za-z0-9_.@-]*$")
+    approval_mode: Literal["admin_review", "self_service"] = "admin_review"
     endpoint: str = Field(default="", max_length=400)
     method: Literal["GET", "LIST", "POST", "PUT", "PATCH", "DELETE"] = "POST"
 
@@ -116,6 +117,13 @@ class Plan(BaseModel):
         return value
 
     def check_action(self):
+        if self.approval_mode == "self_service" and os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
+            raise HTTPException(503, "Self-service KV secrets require the admin namespace")
+        if self.approval_mode == "self_service" and not (
+            self.action == "create_secret" and self.engine == "kv-v2" and self.mount == "onboard-concierge"
+            and os.getenv("VAULT_NAMESPACE", "").strip("/") == "admin"
+        ):
+            raise HTTPException(422, "Self-service is limited to new KV v2 secrets under /admin/onboard-concierge")
         if self.action == "create_secret" and self.description == "Guided KV secret onboarding":
             if self.mount != "onboard-concierge" or os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
                 raise HTTPException(503, "Guided KV secrets are restricted to /admin/onboard-concierge")
@@ -146,7 +154,7 @@ async def issue_plan(plan: Plan, *, request_id: str | None = None, queue: bool =
     if queue:
         await admin_review.register(body)
     await store_review(review_id, ticket)
-    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#review={review_id}", "status": "awaiting_admin_review" if admin_review.enabled() else "awaiting_browser_review", "admin_queue_url": trusted_origin("APP_ORIGIN") + "/admin", "note": "Nothing has been changed in Vault. An approved administrator must review and authorize execution in the secure form."}
+    return {"plan": body["plan"], "expires_at": body["exp"], "review_url": f"{body['aud']}/onboard#review={review_id}", "status": "awaiting_secret_entry" if plan.approval_mode == "self_service" else "awaiting_admin_review" if admin_review.enabled() else "awaiting_browser_review", "admin_queue_url": trusted_origin("APP_ORIGIN") + "/admin", "note": "Enter secret values and your scoped Vault token in the secure create form." if plan.approval_mode == "self_service" else "Nothing has been changed in Vault. An approved administrator must review and authorize execution in the secure form."}
 
 
 def read_plan(ticket: str) -> Plan:
@@ -236,6 +244,8 @@ def catalog():
 @app.post("/api/plans")
 async def prepare(plan: Plan, request: Request):
     tool_authorized(request)
+    if plan.approval_mode != "admin_review":
+        raise HTTPException(422, "Generic agent plans require administrator review")
     return await issue_plan(plan)
 
 
@@ -301,7 +311,7 @@ async def kv_secret_intake(body: KVSecretIntake, request: Request):
         raise HTTPException(401, "Invalid KV secret intake credentials")
     plan = Plan(action="create_secret", engine="kv-v2", mount=body.mount, secret_path=body.secret_path,
                 business_unit_id=body.business_unit_id, user_id=body.user_id,
-                description="Guided KV secret onboarding")
+                description="Guided KV secret onboarding", approval_mode="self_service")
     result = await issue_plan(plan)
     return {**result, "namespace": "admin"}
 
@@ -373,7 +383,7 @@ def access_requirements(plan: Plan) -> dict:
 def preview(body: TicketInput, request: Request):
     same_origin(request)
     plan = read_plan(body.ticket)
-    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan), "admin_review_required": admin_review.enabled()}
+    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan), "admin_review_required": admin_review.enabled() and plan.approval_mode != "self_service"}
 
 
 async def vault_request(client, method, path, token, payload=None, allow_missing=False):
@@ -550,7 +560,9 @@ async def execute(body: ExecuteInput, request: Request):
         raise HTTPException(422, "This plan does not accept operation JSON")
     if plan.action == "create_secret" and (not 1 <= len(body.secret_data) <= 64 or any(not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", k) for k in body.secret_data)):
         raise HTTPException(422, "Provide 1 to 64 named secret fields")
-    actor = admin_review.require_admin(request) if admin_review.enabled() else None
+    self_service = plan.approval_mode == "self_service"
+    actor = ({"sub": "vault-token:" + hmac.new(signing_key(), b"self-service-actor:" + token.encode(), hashlib.sha256).hexdigest()}
+             if self_service else admin_review.require_admin(request) if admin_review.enabled() else None)
     request_id = await admin_review.begin(body.ticket, actor) if actor else None
     try:
         result = await execute_validated(plan, token, payload, body)
@@ -573,6 +585,10 @@ async def execute(body: ExecuteInput, request: Request):
             await admin_review.finish(request_id, actor, result=result)
         except HTTPException:
             raise HTTPException(503, "Vault may have completed the operation, but its queue status could not be saved. Verify Vault before any retry.") from None
+    if self_service:
+        response = JSONResponse({**result, "fulfilled_url": trusted_origin("APP_ORIGIN") + "/fulfilled"})
+        admin_review.remember_fulfilled(response, request, request_id)
+        return response
     return result
 
 
@@ -674,7 +690,7 @@ def chat_page():
 
 @app.get("/assets/{name}")
 def asset(name: str):
-    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css"}:
+    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css", "fulfilled.js"}:
         raise HTTPException(404)
     return FileResponse(ROOT / "web" / name)
 

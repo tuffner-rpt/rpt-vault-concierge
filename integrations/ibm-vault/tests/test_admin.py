@@ -239,7 +239,7 @@ def test_existing_queue_without_business_unit_can_still_be_approved(setup):
     assert execute(client, signed).status_code == 200
 
 
-def test_guided_secret_intake_uses_admin_review_and_cas_zero(setup, monkeypatch):
+def test_guided_secret_intake_is_self_service_and_cas_zero(setup, monkeypatch):
     client, values, calls, mounts = setup
     monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
     mounts.add('onboard-concierge')
@@ -249,12 +249,69 @@ def test_guided_secret_intake_uses_admin_review_and_cas_zero(setup, monkeypatch)
     assert response.status_code == 200 and not calls
     review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
     signed = client.post('/api/resolve', headers=HEADERS, json={'review_id': review}).json()['ticket']
-    assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 401
-    assert login(client).status_code == 200
-    queue = client.get('/api/admin/requests').json()['requests']
-    assert queue[0]['source'] == 'Guided KV secret chat'
-    assert queue[0]['plan']['user_id'] == 'test-developer'
-    assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 200
+    assert client.get('/api/admin/session').status_code == 401
+    assert client.post('/api/preview', headers=HEADERS, json={'ticket': signed}).json()['admin_review_required'] is False
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    response = execute(client, signed, secret_data={'password': 'test-value'})
+    assert response.status_code == 200
+    assert response.json()['fulfilled_url'] == ORIGIN + '/fulfilled'
+    cookie = response.headers['set-cookie']
+    assert 'HttpOnly' in cookie and 'Secure' in cookie and 'SameSite=lax' in cookie
+    completed = client.get('/api/fulfilled').json()['requests']
+    assert len(completed) == 1 and completed[0]['plan']['user_id'] == 'test-developer'
+    assert completed[0]['receipt']['status'] == 'created'
+    assert client.get('/api/admin/session').status_code == 401
+    assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 409
     write = next(request for request in calls if request.url.path.endswith('/data/app/database'))
     assert json.loads(write.content) == {'options': {'cas': 0}, 'data': {'password': 'test-value'}}
     assert 'test-value' not in json.dumps(values)
+
+
+def self_service_ticket(client, monkeypatch):
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    response = client.post('/api/kv-secret-intake', headers={'x-kv-secret-key': 'v' * 64}, json={
+        'secret_path': 'app/self-service', 'business_unit_id': 'BU-456', 'user_id': 'test-user'})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'awaiting_secret_entry'
+    review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
+    signed = client.post('/api/resolve', headers=HEADERS, json={'review_id': review}).json()['ticket']
+    return signed
+
+
+def test_failed_self_service_write_is_not_fulfilled(setup, monkeypatch):
+    client, values, calls, mounts = setup
+    signed = self_service_ticket(client, monkeypatch)
+    response = execute(client, signed, vault_token='invalid-token', secret_data={'password': 'failure-test-value'})
+    assert response.status_code == 403
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    record = json.loads(values[admin.record_key(admin.ticket_id(signed))])
+    assert record['status'] == 'needs_attention'
+    assert execute(client, signed, secret_data={'password': 'retry'}).status_code == 409
+    assert 'failure-test-value' not in json.dumps(values)
+    assert 'invalid-token' not in json.dumps(values)
+
+
+def test_fulfilled_history_is_browser_scoped_and_cookie_signed(setup, monkeypatch):
+    client, values, calls, mounts = setup
+    mounts.add('onboard-concierge')
+    signed = self_service_ticket(client, monkeypatch)
+    response = execute(client, signed, secret_data={'password': 'private-test-value'})
+    assert response.status_code == 200
+    own = client.get('/api/fulfilled').json()
+    assert len(own['requests']) == 1
+    assert 'private-test-value' not in json.dumps(own)
+    assert 'scoped-execution-token' not in json.dumps(own)
+    client.cookies.clear()
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    client.cookies.set(admin.FULFILLED_COOKIE, 'forged-cookie')
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    assert client.get('/api/admin/requests').status_code == 401
+
+
+def test_agent_cannot_disable_approval_by_requesting_self_service(setup):
+    client, values, calls, mounts = setup
+    response = client.post('/api/plans', headers={'X-API-Key': KEY}, json={
+        'action': 'create_secret', 'engine': 'kv-v2', 'mount': 'onboard-concierge',
+        'secret_path': 'app/bypass', 'approval_mode': 'self_service'})
+    assert response.status_code == 422 and not calls
+    assert not values

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     });
     if (!response.ok) throw new Error("KV intake unavailable");
     const result = await response.json();
-    if (result.namespace !== "admin" || result.plan?.mount !== "onboard-concierge" || result.plan?.action !== "create_secret" || result.plan?.engine !== "kv-v2") throw new Error("Invalid KV secret target");
+    if (result.namespace !== "admin" || result.plan?.mount !== "onboard-concierge" || result.plan?.action !== "create_secret" || result.plan?.engine !== "kv-v2" || result.plan?.approval_mode !== "self_service") throw new Error("Invalid KV secret target");
     const review = new URL(result.review_url);
     if (review.origin !== bridgeOrigin() || review.pathname !== "/onboard" || !/^#review=[A-Za-z0-9_-]{22}$/.test(review.hash)) throw new Error("Invalid review URL");
     return NextResponse.json({ review_url: review.href, status: result.status }, { headers: chatHeaders });

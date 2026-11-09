@@ -67,6 +67,7 @@ $("execute").addEventListener("submit", async (event) => {
     const result = await call("/api/execute", payload);
     $("status").textContent = result.status === "already_exists" ? "The compatible engine already exists. No changes were made." : result.status === "completed" ? "Vault completed the approved operation. Its outcome is recorded in the review queue." : "Created in Vault.";
     const { sensitive_result: sensitive, ...receipt } = result;
+    if (result.fulfilled_url) { $("status").textContent = "Secret created in Vault and logged to Requests fulfilled."; $("fulfilled-link").hidden = false; }
     $("receipt").textContent = JSON.stringify(receipt, null, 2); $("receipt").hidden = false; $("execute").hidden = true; ticket = null;
     if (sensitive && Object.keys(sensitive).length) { $("sensitive-output").textContent = JSON.stringify(sensitive, null, 2); $("sensitive-result").hidden = false; }
   } catch (error) {
@@ -86,6 +87,17 @@ $("execute").addEventListener("submit", async (event) => {
   try {
     if (reviewId) { ticket = (await call("/api/resolve", { review_id: reviewId })).ticket; reviewId = null; }
     const result = await call("/api/preview", { ticket }); plan = result.plan;
+    const selfService = plan.approval_mode === "self_service";
+    if (selfService) {
+      document.title = "Create KV Secret · RPT Vault";
+      $("page-eyebrow").textContent = "KV SECRET CREATION";
+      $("page-title").textContent = "Create your KV secret.";
+      $("page-intro").textContent = "Enter the secret values and your scoped Vault token to create this key under /admin/onboard-concierge. No separate administrator approval is required.";
+      const steps = $("page-steps").children;
+      steps[1].textContent = "02 · Enter values & create";
+      steps[2].textContent = "03 · Requests fulfilled";
+      $("submit").textContent = "Create secret";
+    }
     const names = { enable_engine: "Enable secrets engine", create_secret: "Create KV v2 secret", engine_operation: "Run engine-specific operation", tune_engine: "Tune engine lease defaults", disable_engine: "Disable engine and remove its data" };
     const fields = { Operation: names[plan.action], "Vault address": result.vault_address, Namespace: result.namespace || "Root namespace", "Business Unit ID (self-reported)": plan.business_unit_id, "UserID (self-reported)": plan.user_id, Engine: plan.engine, Mount: plan.mount + "/", "Secret path": plan.secret_path, Endpoint: plan.endpoint, "HTTP method": plan.action === "engine_operation" ? plan.method : "", Description: plan.description };
     for (const [label, value] of Object.entries(fields)) {
@@ -95,7 +107,7 @@ $("execute").addEventListener("submit", async (event) => {
       $("summary").append(dt, dd);
     }
     $("summary").hidden = false; $("scope").textContent = result.scope; $("scope").hidden = false;
-    $("status").textContent = "Pending your approval. This link expires 10 minutes after creation.";
+    $("status").textContent = selfService ? "Ready to create with your Vault permissions. This link expires 10 minutes after creation." : "Pending your approval. This link expires 10 minutes after creation.";
     if (result.access_requirements) {
       $("access-note").textContent = result.access_requirements.note;
       $("access-policy").textContent = result.access_requirements.policy_hcl;

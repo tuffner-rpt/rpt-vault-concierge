@@ -39,7 +39,7 @@ def bridge():
 
 
 def enabled():
-    return True  # Administrator approval is mandatory in the deployed application.
+    return True  # Queue storage is always enabled; scoped self-service has separate authorization.
 
 
 def policies():
@@ -81,7 +81,7 @@ async def register(body):
     if body["plan"].get("user_id"):
         source = "Guided KV secret chat" if body["plan"]["action"] == "create_secret" else "Guided KV mount chat"
     record = {"id": body["id"], "plan": body["plan"], "created_at": now, "updated_at": now,
-              "target": target(), "status": "pending", "source": source, "requester": "Not identity-verified"}
+              "target": target(), "status": "ready_for_execution" if body["plan"].get("approval_mode") == "self_service" else "pending", "source": source, "requester": "Not identity-verified"}
     record["signature"] = intent_signature(record)
     result = await b.review_store(["EVAL", CREATE, "2", record_key(record['id']), prefix(), json.dumps(record), str(now), record['id'], str(RETENTION)])
     if result != 1:
@@ -132,8 +132,37 @@ async def begin(ticket, actor):
     record = await get_record(request_id)
     if bridge().Plan.model_validate(record['plan']).model_dump() != bridge().read_plan(ticket).model_dump():
         raise HTTPException(409, "The plan does not match the queued request")
-    await transition(request_id, 'pending', 'executing', actor['sub'])
+    expected = 'ready_for_execution' if bridge().read_plan(ticket).approval_mode == 'self_service' else 'pending'
+    await transition(request_id, expected, 'executing', actor['sub'])
     return request_id
+
+
+FULFILLED_COOKIE = 'rpt_fulfilled'
+
+
+def fulfilled_ids(request):
+    b = bridge()
+    try:
+        claims = jwt.decode(request.cookies.get(FULFILLED_COOKIE, ''), session_key(), algorithms=['HS256'],
+                            audience=b.trusted_origin('APP_ORIGIN') + '/fulfilled',
+                            options={'require': ['exp', 'iat', 'target', 'ids']})
+        if claims['target'] != target() or not isinstance(claims['ids'], list) or len(claims['ids']) > 50:
+            return []
+        for request_id in claims['ids']:
+            uuid.UUID(request_id)
+        return claims['ids']
+    except (jwt.PyJWTError, ValueError, TypeError, AttributeError):
+        return []
+
+
+def remember_fulfilled(response, request, request_id):
+    b = bridge()
+    ids = [i for i in fulfilled_ids(request) if i != request_id] + [request_id]
+    now = int(time.time())
+    signed = jwt.encode({'ids': ids[-50:], 'iat': now, 'exp': now + RETENTION,
+                         'target': target(), 'aud': b.trusted_origin('APP_ORIGIN') + '/fulfilled'}, session_key(), algorithm='HS256')
+    response.set_cookie(FULFILLED_COOKIE, signed, secure=b.trusted_origin('APP_ORIGIN').startswith('https:'),
+                        httponly=True, samesite='lax', path='/', max_age=RETENTION)
 
 
 async def finish(request_id, actor, result=None, error=None):
@@ -154,6 +183,23 @@ class RequestInput(BaseModel):
 
 
 def install(app):
+    @app.get('/fulfilled')
+    def fulfilled_page():
+        return FileResponse(bridge().ROOT / 'web/fulfilled.html')
+
+    @app.get('/api/fulfilled')
+    async def fulfilled(request: Request):
+        records = []
+        for request_id in reversed(fulfilled_ids(request)):
+            try:
+                record = await get_record(request_id)
+                if record['status'] == 'completed':
+                    records.append({k: record[k] for k in ('id', 'plan', 'updated_at', 'receipt')})
+            except HTTPException as error:
+                if error.status_code != 404:
+                    raise
+        return {'requests': records, 'namespace': os.getenv('VAULT_NAMESPACE', '')}
+
     @app.get('/admin')
     def page():
         return FileResponse(bridge().ROOT / 'web/admin.html')

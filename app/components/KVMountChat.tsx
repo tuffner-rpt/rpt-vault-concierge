@@ -89,12 +89,12 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
         ))}
         {step === questions.length ? (
           <div className="kv-chat-review">
-            <h2>Review your KV {noun} request</h2>
+            <h2>{secret ? "Create your KV secret" : "Review your KV mount request"}</h2>
             <dl>{secret ? <><dt>Vault Namespace</dt><dd>admin</dd><dt>KV Mount Name</dt><dd>onboard-concierge</dd><dt>Full Mount Path</dt><dd>/admin/onboard-concierge</dd></> : null}{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
-            {status === "submitted" ? <><p role="status">Your request is pending administrator review. No Vault change has been made.</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">Open secure review ↗</a></> : <>
-              {secret ? <p>Secret values are entered only in the secure review form. This request cannot overwrite an existing secret.</p> : null}
-              <p>The Business Unit ID and UserID are self-reported. An administrator must approve and execute the request with their Vault permissions.</p>
-              <div className="kv-chat-review-actions"><button type="button" onClick={submit} disabled={status !== "ready"}>{status === "submitting" ? "Submitting…" : "Submit for Administrator Review"}</button><button type="button" className="secondary" disabled={status !== "ready"} onClick={() => { setAnswers([]); setError(""); }}>Edit answers</button></div>
+            {status === "submitted" ? <><p role="status">{secret ? "Ready for secret values and your Vault token. No Vault change has been made yet." : "Your request is pending administrator review. No Vault change has been made."}</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">{secret ? "Enter secret values & create →" : "Open secure review ↗"}</a></> : <>
+              {secret ? <p>Secret values and your scoped Vault token are entered only in the secure create form. This request cannot overwrite an existing secret.</p> : null}
+              <p>The Business Unit ID and UserID are self-reported. {secret ? "No separate administrator approval is required. Your Vault permissions authorize creation." : "An administrator must approve and execute the request with their Vault permissions."}</p>
+              <div className="kv-chat-review-actions"><button type="button" onClick={submit} disabled={status !== "ready"}>{status === "submitting" ? "Submitting…" : (secret ? "Continue to Create Secret" : "Submit for Administrator Review")}</button><button type="button" className="secondary" disabled={status !== "ready"} onClick={() => { setAnswers([]); setError(""); }}>Edit answers</button></div>
             </>}
           </div>
         ) : null}
