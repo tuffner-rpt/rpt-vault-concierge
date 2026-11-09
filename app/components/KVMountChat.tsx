@@ -79,18 +79,18 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
 
   return (
     <section className="kv-guided-chat" aria-label={`Ask RPT KV ${noun} onboarding`}>
-      <div className="kv-chat-brand">Ask RPT <span>KV {noun} onboarding{secret ? " · Mount: onboard-concierge" : ""}</span></div>
+      <div className="kv-chat-brand">Ask RPT <span>KV {noun} onboarding{secret ? " · Path: /admin/onboard-concierge" : ""}</span></div>
       <div className="kv-chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {questions.slice(0, Math.min(step + 1, questions.length)).map((question, index) => (
           <div className="kv-chat-exchange" key={question}>
-            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under onboard-concierge/. " : ""}{rules[0].hint}</small> : null}</div>
+            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/. " : ""}{rules[0].hint}</small> : null}</div>
             {answers[index] ? <div className="kv-chat-bubble user"><strong>You</strong><p>{answers[index]}</p></div> : null}
           </div>
         ))}
         {step === questions.length ? (
           <div className="kv-chat-review">
             <h2>Review your KV {noun} request</h2>
-            <dl>{secret ? <><dt>KV Mount Name</dt><dd>onboard-concierge</dd></> : null}{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
+            <dl>{secret ? <><dt>Vault Namespace</dt><dd>admin</dd><dt>KV Mount Name</dt><dd>onboard-concierge</dd><dt>Full Mount Path</dt><dd>/admin/onboard-concierge</dd></> : null}{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
             {status === "submitted" ? <><p role="status">Your request is pending administrator review. No Vault change has been made.</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">Open secure review ↗</a></> : <>
               {secret ? <p>Secret values are entered only in the secure review form. This request cannot overwrite an existing secret.</p> : null}
               <p>The Business Unit ID and UserID are self-reported. An administrator must approve and execute the request with their Vault permissions.</p>

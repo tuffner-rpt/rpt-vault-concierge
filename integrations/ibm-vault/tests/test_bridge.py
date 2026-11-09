@@ -491,6 +491,7 @@ def test_intake_credential_cannot_mint_generic_plans(client, intake_key):
 
 @pytest.fixture
 def secret_intake_key(monkeypatch):
+    monkeypatch.setenv('VAULT_NAMESPACE', 'admin')
     monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
     return {'x-kv-secret-key': 'v' * 64}
 
@@ -541,3 +542,24 @@ def test_secret_intake_defaults_to_concierge_mount(client, secret_intake_key):
     response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=body)
     assert response.status_code == 200
     assert response.json()['plan']['mount'] == 'onboard-concierge'
+
+
+@pytest.mark.parametrize('namespace', ['', 'engineering', 'Admin', 'admin/child'])
+def test_guided_secret_intake_cannot_target_other_namespaces(client, secret_intake_key, monkeypatch, namespace):
+    monkeypatch.setenv('VAULT_NAMESPACE', namespace)
+    response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=secret_intake_payload())
+    assert response.status_code == 503
+
+
+def test_guided_secret_plan_cannot_be_retargeted_after_creation(client, secret_intake_key, monkeypatch):
+    response = client.post('/api/kv-secret-intake', headers=secret_intake_key, json=secret_intake_payload())
+    assert response.status_code == 200 and response.json()['namespace'] == 'admin'
+    review_id = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
+    signed = client.post('/api/resolve', headers=HEADERS, json={'review_id': review_id}).json()['ticket']
+    monkeypatch.setenv('VAULT_NAMESPACE', 'admin/child')
+    assert client.post('/api/preview', headers=HEADERS, json={'ticket': signed}).status_code == 503
+
+
+def test_guided_secret_intake_rejects_client_namespace(client, secret_intake_key):
+    assert client.post('/api/kv-secret-intake', headers=secret_intake_key,
+                       json=secret_intake_payload(namespace='other')).status_code == 422

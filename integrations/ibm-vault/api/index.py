@@ -116,6 +116,9 @@ class Plan(BaseModel):
         return value
 
     def check_action(self):
+        if self.action == "create_secret" and self.description == "Guided KV secret onboarding":
+            if self.mount != "onboard-concierge" or os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
+                raise HTTPException(503, "Guided KV secrets are restricted to /admin/onboard-concierge")
         if self.action == "create_secret" and (self.engine != "kv-v2" or not self.secret_path):
             raise HTTPException(422, "Secrets require KV v2 and a secret path")
         if self.action != "create_secret" and self.secret_path:
@@ -299,7 +302,8 @@ async def kv_secret_intake(body: KVSecretIntake, request: Request):
     plan = Plan(action="create_secret", engine="kv-v2", mount=body.mount, secret_path=body.secret_path,
                 business_unit_id=body.business_unit_id, user_id=body.user_id,
                 description="Guided KV secret onboarding")
-    return await issue_plan(plan)
+    result = await issue_plan(plan)
+    return {**result, "namespace": "admin"}
 
 
 async def review_store(command: list):
