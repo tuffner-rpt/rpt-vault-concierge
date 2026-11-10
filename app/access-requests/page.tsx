@@ -40,7 +40,6 @@ export default function AccessRequestsPage() {
         </a>
         <nav aria-label="Primary navigation">
           <a href="/">Catalog</a>
-          <a className="nav-active" href="/access-requests">My secrets</a>
           <a href="/#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}>Docs</a>
         </nav>
         <div className="top-actions"><button className="avatar" aria-label="Open user menu">KT</button></div>

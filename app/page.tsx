@@ -31,7 +31,6 @@ export default function Home() {
         </a>
         <nav aria-label="Primary navigation">
           <a className="nav-active" href="#catalog">Catalog</a>
-          <a href="/access-requests">My secrets</a>
           <a href="#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}>Docs</a>
         </nav>
         <div className="top-actions">
