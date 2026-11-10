@@ -43,7 +43,6 @@ export default function Home() {
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <a className="side-item active" href="#catalog"><span>⌂</span> Secret catalog</a>
-          <a className="side-item" href="/access-requests"><span>◎</span> Access requests</a>
           <a className="side-item" href="/requests-fulfilled"><span>✓</span> Requests fulfilled</a>
           <div className="side-label section-gap">Resources</div>
           <a className="side-item" href="#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}><span>?</span> Documentation</a>
