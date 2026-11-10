@@ -52,4 +52,4 @@ for(const button of document.querySelectorAll("[data-filter]"))button.onclick=()
 window.addEventListener("pagehide",()=>{$("admin-token").value="";});
 refresh();
 
-(async()=>{try{const config=await api("/api/admin/config");$("vault-target").textContent="Vault: "+config.vault_address+" · Namespace: "+(config.namespace || "root");$("allowed-policies").textContent=config.approved_policies.join(", ");if(config.website_origin){$("brand-link").href=config.website_origin;$("catalog-link").href=config.website_origin;$("chat-link").href=config.website_origin+"/vault-onboarding";}}catch(e){$("status").textContent=e.message;}})();
+(async()=>{try{const config=await api("/api/admin/config");$("vault-target").textContent="Vault: "+config.vault_address+" · Namespace: "+(config.namespace || "root");$("allowed-policies").textContent=config.approved_policies.join(", ");if(config.website_origin){$("brand-link").href=config.website_origin;$("catalog-link").href=config.website_origin;}}catch(e){$("status").textContent=e.message;}})();
