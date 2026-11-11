@@ -75,11 +75,19 @@ def test_real_local_vault_onboarding(monkeypatch):
                 assert execute(engine_plan, scoped_mount).json()["status"] == "already_exists"
                 assert execute(prepare(mount="onboard-other-team"), scoped_mount).status_code == 403
                 # Verify the create-only exact-path policy displayed in secret reviews.
-                exact_plan = prepare(action="create_secret", secret_path="dev/exact")
+                exact_plan = prepare(action="create_secret", secret_path="dev/exact", user_id="dev@example.com", business_unit_id="BU-123")
                 exact_policy = client.post("/api/preview", headers={"Origin": origin}, json={"ticket": exact_plan}).json()["access_requirements"]["policy_hcl"]
                 assert vault.put("/v1/sys/policies/acl/rpt-exact-test", json={"policy": exact_policy}).status_code == 204
                 exact_token = vault.post("/v1/auth/token/create", json={"policies": ["rpt-exact-test"], "no_default_policy": True, "ttl": "5m"}).json()["auth"]["client_token"]
                 assert execute(exact_plan, exact_token, secret_data={"password": "disposable-exact-test-value"}).status_code == 200
+                metadata = vault.get("/v1/onboard-integration/metadata/dev/exact").json()["data"]
+                assert metadata["custom_metadata"] == {"user_id": "dev@example.com", "business_unit_id": "BU-123"}
+                assert metadata["current_version"] == 1
+                assert '"patch"' in exact_policy
+                # CAS failure must not modify existing metadata.
+                other_intent = prepare(action="create_secret", secret_path="dev/exact", user_id="another-user", business_unit_id="BU-other")
+                assert execute(other_intent, root_token, secret_data={"password": "cannot-overwrite"}).status_code == 409
+                assert vault.get("/v1/onboard-integration/metadata/dev/exact").json()["data"]["custom_metadata"] == metadata["custom_metadata"]
                 assert execute(exact_plan, exact_token, secret_data={"password": "cannot-overwrite"}).status_code == 403
                 assert execute(prepare(action="create_secret", secret_path="dev/other"), exact_token, secret_data={"password": "denied"}).status_code == 403
                 # A real scoped caller can write only beneath one application path.

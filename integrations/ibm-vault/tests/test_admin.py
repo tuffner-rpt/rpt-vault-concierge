@@ -41,6 +41,7 @@ def setup(monkeypatch):
                 return httpx.Response(200, json={'data':{'type':'kv','options':{'version':'2'}}}) if mount in mounts else httpx.Response(400,json={'errors':[f'No secret engine mount at {mount}/']})
             if request.method == 'POST': mounts.add(mount); return httpx.Response(204)
         if '/data/' in path and request.method == 'POST': return httpx.Response(200,json={'data':{'version':1}})
+        if '/metadata/' in path and request.method == 'PATCH': return httpx.Response(204)
         raise AssertionError(str(request.url))
     monkeypatch.setattr(bridge.httpx,'AsyncClient',lambda **kw:real_client(transport=httpx.MockTransport(vault),**kw))
     with TestClient(bridge.app, base_url=ORIGIN) as client:
@@ -264,6 +265,14 @@ def test_guided_secret_intake_is_self_service_and_cas_zero(setup, monkeypatch):
     assert execute(client, signed, secret_data={'password': 'test-value'}).status_code == 409
     write = next(request for request in calls if request.url.path.endswith('/data/app/database'))
     assert json.loads(write.content) == {'options': {'cas': 0}, 'data': {'password': 'test-value'}}
+    metadata_write = next(request for request in calls if '/metadata/app/database' in request.url.path)
+    assert metadata_write.method == 'PATCH'
+    assert metadata_write.headers['X-Vault-Namespace'] == 'admin'
+    assert metadata_write.headers['Content-Type'] == 'application/merge-patch+json'
+    assert metadata_write.headers['X-Vault-Token'] == 'scoped-execution-token'
+    assert json.loads(metadata_write.content) == {'custom_metadata': {
+        'user_id': 'test-developer', 'business_unit_id': 'BU-789'}}
+    assert calls.index(write) < calls.index(metadata_write)
     assert 'test-value' not in json.dumps(values)
 
 
@@ -315,3 +324,25 @@ def test_agent_cannot_disable_approval_by_requesting_self_service(setup):
         'secret_path': 'app/bypass', 'approval_mode': 'self_service'})
     assert response.status_code == 422 and not calls
     assert not values
+
+
+@pytest.mark.parametrize('failure', [403, 500, 'timeout'])
+def test_metadata_failure_is_not_fulfilled_and_blocks_replay(setup, monkeypatch, failure):
+    client, values, calls, mounts = setup
+    mounts.add('onboard-concierge')
+    signed = self_service_ticket(client, monkeypatch)
+    original = bridge.vault_request
+    async def fail_metadata(client, method, path, token, payload=None, **kwargs):
+        if method == 'PATCH':
+            assert path == 'onboard-concierge/metadata/app/self-service'
+            raise bridge.HTTPException(502 if failure == 'timeout' else failure, 'private upstream detail')
+        return await original(client, method, path, token, payload, **kwargs)
+    monkeypatch.setattr(bridge, 'vault_request', fail_metadata)
+    response = execute(client, signed, secret_data={'password': 'private-value'})
+    assert response.status_code == 503
+    assert 'secret was created' in response.json()['detail']
+    assert 'private upstream detail' not in response.text
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    assert json.loads(values[admin.record_key(admin.ticket_id(signed))])['status'] == 'needs_attention'
+    assert execute(client, signed, secret_data={'password': 'retry'}).status_code == 409
+    assert len([c for c in calls if '/data/' in c.url.path]) == 1

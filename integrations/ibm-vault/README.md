@@ -241,3 +241,21 @@ Failures and uncertain outcomes require verification in Vault before a new reque
 Request metadata is retained seven days; sensitive results stay only in the
 secure form. Anonymous chat does not establish a verified requester identity.
 The current website's legacy `/api/provision` no longer writes directly to Vault.
+
+
+### KV secret custom metadata
+
+Portal secret creation copies the signed, self-reported `user_id` and
+`business_unit_id` inputs to KV v2 `custom_metadata` in namespace `admin`,
+mount `onboard-concierge`. They are descriptive inputs, not verified identities
+or authorization claims. Secret values remain separate.
+
+The caller's Vault token needs `patch` on the exact
+`onboard-concierge/metadata/<secret-path>` in addition to the existing mount-read
+and secret-create permissions. The secure form generates these exact-path ACLs.
+After create-only CAS succeeds, a JSON merge patch saves the metadata while
+preserving other custom metadata and key settings. These are two Vault calls:
+if metadata cannot be confirmed, the request is marked as needing attention,
+never fulfilled, and cannot be replayed. Verify the existing secret in Vault and
+repair its metadata rather than recreating it. Previously created secrets are
+not changed automatically.

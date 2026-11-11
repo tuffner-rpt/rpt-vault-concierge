@@ -396,6 +396,8 @@ def access_requirements(plan: Plan) -> dict:
         permissions["sys/plugins/catalog"] = ["read"]
     elif plan.action == "create_secret":
         permissions[f"{plan.mount}/data/{plan.secret_path}"] = ["create"]
+        if plan.user_id or plan.business_unit_id:
+            permissions[f"{plan.mount}/metadata/{plan.secret_path}"] = ["patch"]
     elif plan.action == "engine_operation":
         permissions[plan.mount] = ["read"]
         permissions[f"{plan.mount}/{plan.endpoint}"] = [{"GET": "read", "LIST": "list", "POST": "update", "PUT": "update", "PATCH": "patch", "DELETE": "delete"}[plan.method]]
@@ -658,6 +660,17 @@ async def execute_validated(plan, token, payload, body):
             return {"status": "completed", "engine": plan.engine, "mount": plan.mount, "endpoint": path, "method": method, "sensitive_result": {k: result[k] for k in ("data", "lease_id", "lease_duration", "renewable", "warnings") if k in result}}
         data = {key: value.get_secret_value() for key, value in body.secret_data.items()}
         result = await vault_request(client, "POST", f"{plan.mount}/data/{plan.secret_path}", token, {"options": {"cas": 0}, "data": data})
+        # Use only signed intake fields; keep them separate from secret values.
+        custom_metadata = {key: value for key, value in {
+            "user_id": plan.user_id, "business_unit_id": plan.business_unit_id,
+        }.items() if value}
+        if custom_metadata:
+            try:
+                # Merge preserves unrelated custom metadata and key configuration.
+                await vault_request(client, "PATCH", f"{plan.mount}/metadata/{plan.secret_path}", token,
+                                    {"custom_metadata": custom_metadata})
+            except HTTPException:
+                raise HTTPException(503, "The secret was created, but its custom metadata could not be confirmed. Do not recreate the secret. Verify its Custom Metadata in Vault and have an administrator complete user_id and business_unit_id if missing. The token needs patch permission on this secret's metadata path.") from None
         return {"status": "created", "mount": plan.mount, "path": plan.secret_path, "version": result.get("data", {}).get("version")}
 
 
