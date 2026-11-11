@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DocumentationWindow } from "../components/DocumentationWindow";
+import { AdminReviewLink } from "../components/AdminReviewLink";
 
 type AccessRequest = {
   name: string;
@@ -39,7 +40,6 @@ export default function AccessRequestsPage() {
         </a>
         <nav aria-label="Primary navigation">
           <a href="/">Catalog</a>
-          <a className="nav-active" href="/access-requests">My secrets</a>
           <a href="/#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}>Docs</a>
         </nav>
         <div className="top-actions"><button className="avatar" aria-label="Open user menu">KT</button></div>
@@ -49,13 +49,12 @@ export default function AccessRequestsPage() {
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <a className="side-item" href="/"><span>⌂</span> Secret catalog</a>
-          <a className="side-item" href="/access-requests"><span>◫</span> My secrets <b>{requests.length}</b></a>
-          <a className="side-item active" href="/access-requests"><span>◎</span> Access requests</a>
+          <a className="side-item" href="/requests-fulfilled"><span>✓</span> Requests fulfilled</a>
           <div className="side-label section-gap">Resources</div>
           <a className="side-item" href="/#docs" onClick={(event) => { event.preventDefault(); setDocsOpen(true); }}><span>?</span> Documentation</a>
+          <AdminReviewLink />
           <div className="health-statuses" aria-label="Service health">
             <div className="side-status"><span className="status-dot" /><div><strong>Vault healthy</strong><small>us-central1 · 99.99%</small></div></div>
-            <div className="side-status"><span className="status-dot openai-dot" /><div><strong>OpenAI healthy</strong><small>gpt-5.6-terra · ready</small></div></div>
           </div>
         </aside>
 

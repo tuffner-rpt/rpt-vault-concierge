@@ -8,7 +8,6 @@ const resources = [
   { id: "vault-database", icon: "D", title: "Dynamic database credentials", description: "Generate leased database users and automatically revoke expired access.", source: "HashiCorp", url: "https://developer.hashicorp.com/vault/docs/secrets/databases" },
   { id: "vault-pki", icon: "P", title: "PKI certificates", description: "Issue short-lived X.509 certificates from Vault's PKI secrets engine.", source: "HashiCorp", url: "https://developer.hashicorp.com/vault/docs/secrets/pki" },
   { id: "vault-policies", icon: "A", title: "Policies and least privilege", description: "Control path-based capabilities with deny-by-default Vault policies.", source: "HashiCorp", url: "https://developer.hashicorp.com/vault/docs/concepts/policies" },
-  { id: "openai-responses", icon: "O", title: "OpenAI Responses API", description: "Build the server-side recommendation workflow used by this concierge.", source: "OpenAI", url: "https://developers.openai.com/api/docs/quickstart" },
 ] as const;
 
 export function DocumentationWindow({ open, onClose }: DocumentationWindowProps) {
@@ -19,7 +18,7 @@ export function DocumentationWindow({ open, onClose }: DocumentationWindowProps)
       <section className="docs-window" role="dialog" aria-modal="true" aria-labelledby="docs-window-title">
         <header className="docs-window-head">
           <span className="agent-gem brand-agent"><img src="/rpt-gcp.jpeg" alt="" /></span>
-          <div><span className="docs-kicker">OPENAI DOCUMENTATION GUIDE</span><h2 id="docs-window-title">Recommended documentation</h2></div>
+          <div><span className="docs-kicker">VAULT DOCUMENTATION GUIDE</span><h2 id="docs-window-title">Recommended documentation</h2></div>
           <button className="docs-close" onClick={onClose} aria-label="Close documentation window">×</button>
         </header>
 
