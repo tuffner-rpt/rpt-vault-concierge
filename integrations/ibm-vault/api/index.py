@@ -79,7 +79,7 @@ def tool_authorized(request: Request):
 
 class Plan(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    action: Literal["enable_engine", "create_secret", "engine_operation", "tune_engine", "disable_engine"]
+    action: Literal["enable_engine", "create_secret", "update_secret", "engine_operation", "tune_engine", "disable_engine"]
     engine: str = Field(min_length=1, max_length=100)
     mount: str = Field(min_length=2, max_length=100)
     secret_path: str = Field(default="", max_length=300)
@@ -120,17 +120,19 @@ class Plan(BaseModel):
         if self.approval_mode == "self_service" and os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
             raise HTTPException(503, "Self-service KV secrets require the admin namespace")
         if self.approval_mode == "self_service" and not (
-            self.action == "create_secret" and self.engine == "kv-v2" and self.mount == "onboard-concierge"
+            self.action in {"create_secret", "update_secret"} and self.engine == "kv-v2" and self.mount == "onboard-concierge"
             and os.getenv("VAULT_NAMESPACE", "").strip("/") == "admin"
         ):
-            raise HTTPException(422, "Self-service is limited to new KV v2 secrets under /admin/onboard-concierge")
+            raise HTTPException(422, "Self-service is limited to KV v2 secrets under /admin/onboard-concierge")
         if self.action == "create_secret" and self.description == "Guided KV secret onboarding":
             if self.mount != "onboard-concierge" or os.getenv("VAULT_NAMESPACE", "").strip("/") != "admin":
                 raise HTTPException(503, "Guided KV secrets are restricted to /admin/onboard-concierge")
-        if self.action == "create_secret" and (self.engine != "kv-v2" or not self.secret_path):
+        if self.action == "update_secret" and self.approval_mode != "self_service":
+            raise HTTPException(422, "KV updates must use the scoped portal update flow")
+        if self.action in {"create_secret", "update_secret"} and (self.engine != "kv-v2" or not self.secret_path):
             raise HTTPException(422, "Secrets require KV v2 and a secret path")
-        if self.action != "create_secret" and self.secret_path:
-            raise HTTPException(422, "Only secret creation plans can include a secret path")
+        if self.action not in {"create_secret", "update_secret"} and self.secret_path:
+            raise HTTPException(422, "Only secret creation or update plans can include a secret path")
         if self.action == "engine_operation" and not self.endpoint:
             raise HTTPException(422, "An engine operation requires an explicit relative endpoint")
         if self.action != "engine_operation" and (self.endpoint or self.method != "POST"):
@@ -316,6 +318,18 @@ async def kv_secret_intake(body: KVSecretIntake, request: Request):
     return {**result, "namespace": "admin"}
 
 
+@app.post("/api/kv-secret-update-intake")
+async def kv_secret_update_intake(body: KVSecretIntake, request: Request):
+    expected = required("KV_SECRET_INTAKE_KEY")
+    if len(expected) < 32 or not hmac.compare_digest(request.headers.get("x-kv-secret-key", ""), expected):
+        raise HTTPException(401, "Invalid KV secret intake credentials")
+    plan = Plan(action="update_secret", engine="kv-v2", mount=body.mount, secret_path=body.secret_path,
+                business_unit_id=body.business_unit_id, user_id=body.user_id,
+                description="Guided KV secret update", approval_mode="self_service")
+    result = await issue_plan(plan)
+    return {**result, "namespace": "admin"}
+
+
 class KVSecretListInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     vault_token: SecretStr = Field(min_length=1, max_length=4096)
@@ -398,6 +412,9 @@ def access_requirements(plan: Plan) -> dict:
         permissions[f"{plan.mount}/data/{plan.secret_path}"] = ["create"]
         if plan.user_id or plan.business_unit_id:
             permissions[f"{plan.mount}/metadata/{plan.secret_path}"] = ["patch"]
+    elif plan.action == "update_secret":
+        permissions[f"{plan.mount}/data/{plan.secret_path}"] = ["patch"]
+        permissions[f"{plan.mount}/metadata/{plan.secret_path}"] = ["read", "patch"]
     elif plan.action == "engine_operation":
         permissions[plan.mount] = ["read"]
         permissions[f"{plan.mount}/{plan.endpoint}"] = [{"GET": "read", "LIST": "list", "POST": "update", "PUT": "update", "PATCH": "patch", "DELETE": "delete"}[plan.method]]
@@ -418,7 +435,7 @@ def access_requirements(plan: Plan) -> dict:
 def preview(body: TicketInput, request: Request):
     same_origin(request)
     plan = read_plan(body.ticket)
-    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan), "admin_review_required": admin_review.enabled() and plan.approval_mode != "self_service"}
+    return {"plan": plan.model_dump(), "vault_address": trusted_origin("VAULT_ADDR"), "namespace": os.getenv("VAULT_NAMESPACE", ""), "scope": "Update existing KV v2 secret fields; other fields are preserved and a new version is created." if plan.action == "update_secret" else engine_spec(plan.engine)["ready"], "confirmation_phrase": confirmation_phrase(plan), "access_requirements": access_requirements(plan), "admin_review_required": admin_review.enabled() and plan.approval_mode != "self_service"}
 
 
 async def vault_request(client, method, path, token, payload=None, allow_missing=False):
@@ -580,8 +597,8 @@ async def execute(body: ExecuteInput, request: Request):
     plan = read_plan(body.ticket)
     token = body.vault_token.get_secret_value()
     validate_token(token)
-    if plan.action != "create_secret" and body.secret_data:
-        raise HTTPException(422, "Only KV v2 creation plans can include secret fields")
+    if plan.action not in {"create_secret", "update_secret"} and body.secret_data:
+        raise HTTPException(422, "Only KV v2 creation or update plans can include secret fields")
     phrase = confirmation_phrase(plan)
     if phrase and body.confirmation_text != phrase:
         raise HTTPException(422, "Type the exact destructive-operation confirmation shown in the form")
@@ -591,9 +608,9 @@ async def execute(body: ExecuteInput, request: Request):
             raise ValueError()
     except (ValueError, RecursionError):
         raise HTTPException(422, "Operation input must be a JSON object") from None
-    if plan.action in {"enable_engine", "create_secret", "disable_engine"} and payload:
+    if plan.action in {"enable_engine", "create_secret", "update_secret", "disable_engine"} and payload:
         raise HTTPException(422, "This plan does not accept operation JSON")
-    if plan.action == "create_secret" and (not 1 <= len(body.secret_data) <= 64 or any(not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", k) for k in body.secret_data)):
+    if plan.action in {"create_secret", "update_secret"} and (not 1 <= len(body.secret_data) <= 64 or any(not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", k) for k in body.secret_data)):
         raise HTTPException(422, "Provide 1 to 64 named secret fields")
     self_service = plan.approval_mode == "self_service"
     actor = ({"sub": "vault-token:" + hmac.new(signing_key(), b"self-service-actor:" + token.encode(), hashlib.sha256).hexdigest()}
@@ -659,7 +676,18 @@ async def execute_validated(plan, token, payload, body):
             result = await vault_request(client, method, path, token, payload if method in {"POST", "PUT", "PATCH"} else None)
             return {"status": "completed", "engine": plan.engine, "mount": plan.mount, "endpoint": path, "method": method, "sensitive_result": {k: result[k] for k in ("data", "lease_id", "lease_duration", "renewable", "warnings") if k in result}}
         data = {key: value.get_secret_value() for key, value in body.secret_data.items()}
-        result = await vault_request(client, "POST", f"{plan.mount}/data/{plan.secret_path}", token, {"options": {"cas": 0}, "data": data})
+        if plan.action == "update_secret":
+            # Read version metadata only; never fetch existing secret values.
+            metadata = await vault_request(client, "GET", f"{plan.mount}/metadata/{plan.secret_path}", token, allow_missing=True)
+            details = (metadata or {}).get("data", {})
+            version = details.get("current_version")
+            current_version = details.get("versions", {}).get(str(version), {})
+            if type(version) is not int or version < 1 or not current_version or current_version.get("destroyed") or current_version.get("deletion_time"):
+                raise HTTPException(409, "Update requires an existing, active KV secret. Use Create KV Secret for a new path.")
+            result = await vault_request(client, "PATCH", f"{plan.mount}/data/{plan.secret_path}", token,
+                                         {"options": {"cas": version}, "data": data})
+        else:
+            result = await vault_request(client, "POST", f"{plan.mount}/data/{plan.secret_path}", token, {"options": {"cas": 0}, "data": data})
         # Use only signed intake fields; keep them separate from secret values.
         custom_metadata = {key: value for key, value in {
             "user_id": plan.user_id, "business_unit_id": plan.business_unit_id,
@@ -670,8 +698,8 @@ async def execute_validated(plan, token, payload, body):
                 await vault_request(client, "PATCH", f"{plan.mount}/metadata/{plan.secret_path}", token,
                                     {"custom_metadata": custom_metadata})
             except HTTPException:
-                raise HTTPException(503, "The secret was created, but its custom metadata could not be confirmed. Do not recreate the secret. Verify its Custom Metadata in Vault and have an administrator complete user_id and business_unit_id if missing. The token needs patch permission on this secret's metadata path.") from None
-        return {"status": "created", "mount": plan.mount, "path": plan.secret_path, "version": result.get("data", {}).get("version")}
+                raise HTTPException(503, "The secret was saved, but its custom metadata could not be confirmed. Do not recreate the secret. Verify its Custom Metadata in Vault and have an administrator complete user_id and business_unit_id if missing. The token needs patch permission on this secret's metadata path.") from None
+        return {"status": "updated" if plan.action == "update_secret" else "created", "mount": plan.mount, "path": plan.secret_path, "version": result.get("data", {}).get("version")}
 
 
 @app.get("/api/chat-config")

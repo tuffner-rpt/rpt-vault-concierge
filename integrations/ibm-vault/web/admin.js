@@ -1,7 +1,7 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let records = [], offset = 0, nextOffset = null, filter = "pending";
-const labels = {enable_engine:"Enable secrets engine",create_secret:"Create KV v2 secret",engine_operation:"Engine operation",tune_engine:"Tune mount",disable_engine:"Disable engine"};
+const labels = {enable_engine:"Enable secrets engine",create_secret:"Create KV v2 secret",update_secret:"Update KV v2 secret",engine_operation:"Engine operation",tune_engine:"Tune mount",disable_engine:"Disable engine"};
 async function api(path, body) {
   const response = await fetch(path, {method:body === undefined ? "GET" : "POST", credentials:"same-origin", cache:"no-store", ...(body === undefined ? {} : {headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})});
   const data = await response.json();

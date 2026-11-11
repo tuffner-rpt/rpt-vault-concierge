@@ -3,6 +3,7 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
+from httpx import AsyncClient as RealAsyncClient
 import pytest
 from fastapi.testclient import TestClient
 from api import index as bridge
@@ -340,9 +341,105 @@ def test_metadata_failure_is_not_fulfilled_and_blocks_replay(setup, monkeypatch,
     monkeypatch.setattr(bridge, 'vault_request', fail_metadata)
     response = execute(client, signed, secret_data={'password': 'private-value'})
     assert response.status_code == 503
-    assert 'secret was created' in response.json()['detail']
+    assert 'secret was saved' in response.json()['detail']
     assert 'private upstream detail' not in response.text
     assert client.get('/api/fulfilled').json()['requests'] == []
     assert json.loads(values[admin.record_key(admin.ticket_id(signed))])['status'] == 'needs_attention'
     assert execute(client, signed, secret_data={'password': 'retry'}).status_code == 409
     assert len([c for c in calls if '/data/' in c.url.path]) == 1
+
+
+def update_ticket(client, monkeypatch, **changes):
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    response = client.post('/api/kv-secret-update-intake', headers={'x-kv-secret-key': 'v' * 64}, json={
+        'secret_path': 'app/existing', 'business_unit_id': 'BU-update', 'user_id': 'updater', **changes})
+    assert response.status_code == 200, response.text
+    assert response.json()['plan']['action'] == 'update_secret'
+    review = parse_qs(urlsplit(response.json()['review_url']).fragment)['review'][0]
+    return client.post('/api/resolve', headers=HEADERS, json={'review_id': review}).json()['ticket']
+
+
+def mock_update_vault(monkeypatch, *, missing=False, deleted=False, destroyed=False, conflict=False, metadata_failure=False):
+    calls = []
+    real_client = RealAsyncClient
+    def respond(request):
+        calls.append(request)
+        assert request.headers['X-Vault-Namespace'] == 'admin'
+        assert request.headers['X-Vault-Token'] == 'scoped-execution-token'
+        if request.url.path == '/v1/sys/mounts/onboard-concierge':
+            return httpx.Response(200, json={'data': {'type': 'kv', 'options': {'version': '2'}}})
+        if request.url.path == '/v1/onboard-concierge/metadata/app/existing':
+            if request.method == 'GET':
+                if missing: return httpx.Response(404)
+                return httpx.Response(200, json={'data': {'current_version': 3, 'versions': {
+                    '3': {'destroyed': destroyed, 'deletion_time': '2026-01-01' if deleted else ''}}}})
+            assert request.method == 'PATCH'
+            return httpx.Response(403 if metadata_failure else 204)
+        assert request.method == 'PATCH'
+        assert request.url.path == '/v1/onboard-concierge/data/app/existing'
+        return httpx.Response(400 if conflict else 200, json={'data': {'version': 4}})
+    monkeypatch.setattr(bridge.httpx, 'AsyncClient', lambda **kw: real_client(transport=httpx.MockTransport(respond), **kw))
+    return calls
+
+
+def test_update_is_scoped_self_service_versioned_and_fulfilled(setup, monkeypatch):
+    client, values, _, mounts = setup
+    signed = update_ticket(client, monkeypatch)
+    preview = client.post('/api/preview', headers=HEADERS, json={'ticket': signed}).json()
+    assert not preview['admin_review_required']
+    assert 'onboard-concierge/metadata/app/existing' in preview['access_requirements']['policy_hcl']
+    assert '["read", "patch"]' in preview['access_requirements']['policy_hcl']
+    calls = mock_update_vault(monkeypatch)
+    response = execute(client, signed, secret_data={'password': 'updated-private-value'})
+    assert response.status_code == 200, response.text
+    assert response.json()['status'] == 'updated' and response.json()['version'] == 4
+    write = next(c for c in calls if '/data/' in c.url.path)
+    assert json.loads(write.content) == {'options': {'cas': 3}, 'data': {'password': 'updated-private-value'}}
+    assert write.headers['Content-Type'] == 'application/merge-patch+json'
+    assert not any(c.method == 'GET' and '/data/' in c.url.path for c in calls)
+    assert json.loads(calls[-1].content) == {'custom_metadata': {'user_id': 'updater', 'business_unit_id': 'BU-update'}}
+    fulfilled = client.get('/api/fulfilled').json()['requests']
+    assert len(fulfilled) == 1 and fulfilled[0]['receipt']['status'] == 'updated'
+    assert execute(client, signed, secret_data={'password': 'replay'}).status_code == 409
+    assert 'updated-private-value' not in json.dumps(values)
+
+
+@pytest.mark.parametrize('condition', ['missing', 'deleted', 'destroyed', 'conflict', 'metadata_failure'])
+def test_update_failures_never_fulfilled_or_replayed(setup, monkeypatch, condition):
+    client, values, _, mounts = setup
+    signed = update_ticket(client, monkeypatch)
+    calls = mock_update_vault(monkeypatch, **{condition: True})
+    response = execute(client, signed, secret_data={'password': 'private-test'})
+    assert response.status_code == (503 if condition == 'metadata_failure' else 409)
+    assert client.get('/api/fulfilled').json()['requests'] == []
+    assert execute(client, signed, secret_data={'password': 'retry'}).status_code == 409
+    assert json.loads(values[admin.record_key(admin.ticket_id(signed))])['status'] == 'needs_attention'
+    if condition in {'missing', 'deleted', 'destroyed'}:
+        assert not any(c.method == 'PATCH' for c in calls)
+    if condition == 'conflict':
+        assert not any(c.method == 'PATCH' and '/metadata/' in c.url.path for c in calls)
+
+
+@pytest.mark.parametrize('changes', [
+    {'mount': 'other'}, {'secret_path': '../escape'}, {'secret_path': '/admin/onboard-concierge/foo'},
+    {'secret_path': 'a//b'}, {'namespace': 'other'}, {'action': 'create_secret'},
+    {'engine': 'kv-v1'}, {'endpoint': 'sys/mounts'}, {'secret_data': {'password': 'hidden'}},
+])
+def test_update_intake_rejects_alternate_target_or_values(setup, monkeypatch, changes):
+    client, values, calls, mounts = setup
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    response = client.post('/api/kv-secret-update-intake', headers={'x-kv-secret-key': 'v' * 64}, json={
+        'secret_path': 'app/existing', 'business_unit_id': 'BU-update', 'user_id': 'updater', **changes})
+    assert response.status_code == 422
+    assert not calls
+    assert 'hidden' not in response.text
+
+
+def test_update_requires_intake_auth_and_correct_namespace(setup, monkeypatch):
+    client, values, calls, mounts = setup
+    monkeypatch.setenv('KV_SECRET_INTAKE_KEY', 'v' * 64)
+    body = {'secret_path': 'app/existing', 'business_unit_id': 'BU-update', 'user_id': 'updater'}
+    assert client.post('/api/kv-secret-update-intake', json=body).status_code == 401
+    monkeypatch.setenv('VAULT_NAMESPACE', 'other')
+    assert client.post('/api/kv-secret-update-intake', headers={'x-kv-secret-key': 'v' * 64}, json=body).status_code == 503
+    assert not calls

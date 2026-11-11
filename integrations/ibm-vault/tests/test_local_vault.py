@@ -1,5 +1,6 @@
 """Optional real Vault smoke test using an isolated, disposable local dev server."""
 import os
+import asyncio
 import secrets
 import shutil
 import socket
@@ -109,6 +110,21 @@ def test_real_local_vault_onboarding(monkeypatch):
                 forbidden = prepare(action="create_secret", secret_path="prod/database")
                 assert execute(forbidden, caller_token, secret_data={"password": "denied"}).status_code == 403
                 assert vault.get("/v1/onboard-integration/data/prod/database").status_code == 404
+                # Scoped patch updates preserve fields, add one version, and save attribution.
+                update_plan = bridge.Plan(action="update_secret", engine="kv-v2", mount="onboard-integration",
+                                          secret_path="dev/database", user_id="update-user", business_unit_id="BU-update")
+                update_policy = bridge.access_requirements(update_plan)["policy_hcl"]
+                assert vault.put("/v1/sys/policies/acl/rpt-update-test", json={"policy": update_policy}).status_code == 204
+                update_token = vault.post("/v1/auth/token/create", json={"policies": ["rpt-update-test"], "no_default_policy": True, "ttl": "5m"}).json()["auth"]["client_token"]
+                assert vault.patch("/v1/onboard-integration/metadata/dev/database", headers={"Content-Type": "application/merge-patch+json"}, json={"custom_metadata": {"owner": "original-owner"}}).status_code == 204
+                update_body = bridge.ExecuteInput(ticket="disposable-test", vault_token=update_token, confirmed=True,
+                                                  secret_data={"api_key": "new-private-value"})
+                updated = asyncio.run(bridge.execute_validated(update_plan, update_token, {}, update_body))
+                assert updated["status"] == "updated" and updated["version"] == 2
+                stored = vault.get("/v1/onboard-integration/data/dev/database").json()["data"]
+                assert stored["data"] == {"password": "disposable-integration-test-value", "api_key": "new-private-value"}
+                assert stored["metadata"]["custom_metadata"] == {"owner": "original-owner", "user_id": "update-user", "business_unit_id": "BU-update"}
+                assert vault.get("/v1/onboard-integration/data/dev/database", headers={"X-Vault-Token": update_token}).status_code == 403
                 available = vault.get("/v1/sys/plugins/catalog").json()["data"]
                 mountable = {item["name"] for item in available["detailed"] if item["type"] == "secret" and item.get("deprecation_status") == "supported"}
                 for engine in sorted(mountable | {"database", "kv-v1"}):

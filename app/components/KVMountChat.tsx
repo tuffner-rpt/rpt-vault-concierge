@@ -26,9 +26,10 @@ const secretRules: InputRule[] = [
 ];
 const labels: Record<string, string> = { mount: "KV Mount Name", secret_path: "Secret Name / Path", business_unit_id: "Business Unit ID", user_id: "UserID" };
 
-export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
-  const secret = mode === "secret";
-  const questions = secret ? secretQuestions : mountQuestions;
+export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" | "update" }) {
+  const update = mode === "update";
+  const secret = mode !== "mount";
+  const questions = update ? ["What is the KV secret path under /admin/onboard-concierge you want to update?", ...secretQuestions.slice(1)] : secret ? secretQuestions : mountQuestions;
   const rules = secret ? secretRules : mountRules;
   const fields = secret ? ["secret_path", "business_unit_id", "user_id"] : ["mount", "business_unit_id", "user_id"];
   const noun = secret ? "secret" : "mount";
@@ -63,7 +64,7 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
     setStatus("submitting");
     setError("");
     try {
-      const response = await fetch(secret ? "/api/kv-secret" : "/api/kv-mount", {
+      const response = await fetch(update ? "/api/kv-secret-update" : secret ? "/api/kv-secret" : "/api/kv-mount", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(fields.map((field, index) => [field, answers[index]]))),
       });
@@ -79,22 +80,22 @@ export function KVMountChat({ mode = "mount" }: { mode?: "mount" | "secret" }) {
 
   return (
     <section className="kv-guided-chat" aria-label={`Ask RPT KV ${noun} onboarding`}>
-      <div className="kv-chat-brand">Ask RPT <span>KV {noun} onboarding{secret ? " · Path: /admin/onboard-concierge" : ""}</span></div>
+      <div className="kv-chat-brand">Ask RPT <span>KV {noun} {update ? "update" : "onboarding"}{secret ? " · Path: /admin/onboard-concierge" : ""}</span></div>
       <div className="kv-chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {questions.slice(0, Math.min(step + 1, questions.length)).map((question, index) => (
           <div className="kv-chat-exchange" key={question}>
-            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{secret ? "All keys are created under /admin/onboard-concierge/xxx." : rules[0].hint}</small> : null}</div>
+            <div className="kv-chat-bubble assistant"><strong>Ask RPT</strong><p>{question}</p>{index === 0 ? <small>{update ? "Only existing secrets under /admin/onboard-concierge can be updated." : secret ? "All keys are created under /admin/onboard-concierge/xxx." : rules[0].hint}</small> : null}</div>
             {answers[index] ? <div className="kv-chat-bubble user"><strong>You</strong><p>{answers[index]}</p></div> : null}
           </div>
         ))}
         {step === questions.length ? (
           <div className="kv-chat-review">
-            <h2>{secret ? "Create your KV secret" : "Review your KV mount request"}</h2>
+            <h2>{update ? "Update your KV secret" : secret ? "Create your KV secret" : "Review your KV mount request"}</h2>
             <dl>{secret ? <><dt>Vault Namespace</dt><dd>admin</dd><dt>KV Mount Name</dt><dd>onboard-concierge</dd><dt>Full Mount Path</dt><dd>/admin/onboard-concierge</dd></> : null}{fields.map((field, index) => <Fragment key={field}><dt>{labels[field]}</dt><dd>{answers[index]}</dd></Fragment>)}<dt>KV Mount Type</dt><dd>KV v2</dd></dl>
-            {status === "submitted" ? <><p role="status">{secret ? "Ready for secret values and your Vault token. No Vault change has been made yet." : "Your request is pending administrator review. No Vault change has been made."}</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">{secret ? "Enter secret values & create →" : "Open secure review ↗"}</a></> : <>
-              {secret ? <p>Secret values and your scoped Vault token are entered only in the secure create form. This request cannot overwrite an existing secret.</p> : null}
-              <p>The Business Unit ID and UserID are self-reported. {secret ? "No separate administrator approval is required. Your Vault permissions authorize creation." : "An administrator must approve and execute the request with their Vault permissions."}</p>
-              <div className="kv-chat-review-actions"><button type="button" onClick={submit} disabled={status !== "ready"}>{status === "submitting" ? "Submitting…" : (secret ? "Continue to Create Secret" : "Submit for Administrator Review")}</button><button type="button" className="secondary" disabled={status !== "ready"} onClick={() => { setAnswers([]); setError(""); }}>Edit answers</button></div>
+            {status === "submitted" ? <><p role="status">{secret ? "Ready for secret values and your Vault token. No Vault change has been made yet." : "Your request is pending administrator review. No Vault change has been made."}</p><a href={reviewUrl} target="_blank" rel="noopener noreferrer">{update ? "Enter changed values & update →" : secret ? "Enter secret values & create →" : "Open secure review ↗"}</a></> : <>
+              {secret ? <p>{update ? "Enter the fields to add or change and your scoped Vault token in the secure update form. Other fields are preserved. A new secret version is created." : "Secret values and your scoped Vault token are entered only in the secure create form. This request cannot overwrite an existing secret."}</p> : null}
+              <p>The Business Unit ID and UserID are self-reported. {secret ? "No separate administrator approval is required. Your Vault permissions authorize the change." : "An administrator must approve and execute the request with their Vault permissions."}</p>
+              <div className="kv-chat-review-actions"><button type="button" onClick={submit} disabled={status !== "ready"}>{status === "submitting" ? "Submitting…" : (update ? "Continue to Update Secret" : secret ? "Continue to Create Secret" : "Submit for Administrator Review")}</button><button type="button" className="secondary" disabled={status !== "ready"} onClick={() => { setAnswers([]); setError(""); }}>Edit answers</button></div>
             </>}
           </div>
         ) : null}

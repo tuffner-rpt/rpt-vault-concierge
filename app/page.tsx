@@ -16,6 +16,7 @@ type Template = {
 
 const templates: Template[] = [
   { id: "kv-secret", icon: "◇", title: "Create KV Secret", description: "Add a new key under the /admin/onboard-concierge KV v2 mount.", accent: "blue", kind: "kv-v2" },
+  { id: "update-kv-secret", icon: "✎", title: "Update KV Secret", description: "Update fields in an existing secret under /admin/onboard-concierge.", accent: "blue", kind: "kv-v2" },
   { id: "list-kv-secrets", icon: "☷", title: "List KV Secrets", description: "Browse key names only under /admin/onboard-concierge.", accent: "amber", kind: "kv-v2" },
 ];
 
@@ -62,7 +63,7 @@ export default function Home() {
 
           <section className="template-grid" aria-label="Secret templates">
             {templates.map((template) => (
-              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : template.id === "list-kv-secrets" ? "/kv-secrets" : "/vault-onboarding")}>
+              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : template.id === "update-kv-secret" ? "/kv-secret-update" : template.id === "list-kv-secrets" ? "/kv-secrets" : "/vault-onboarding")}>
                 <span className={`tile-icon ${template.accent}`}>{template.icon}</span>
                 <span className="tile-arrow">↗</span>
                 <strong>{template.title}</strong>

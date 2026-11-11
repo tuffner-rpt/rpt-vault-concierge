@@ -51,7 +51,7 @@ put confidential data in descriptions or path names; those remain in chat histor
 | Capability | Implemented scope |
 | --- | --- |
 | Engine types | Any available mountable secrets plugin; built-in, Enterprise and registered custom plugins |
-| KV v2 data writes | Atomic create-only CAS; generic API cannot bypass this |
+| KV v2 data writes | Create uses CAS 0; scoped portal updates merge fields using the current version as CAS; generic API cannot bypass these flows |
 | Engine-specific APIs | Configuration, roles, cryptography, issuance, credentials, reads, listing, rotation, revocation and deletion when published in the live mount schema |
 | Mount lifecycle | Enable, compatible-mount no-op, lease defaults/description tuning and disable |
 | Approval | Exact method/path review; typed mutation/destruction confirmation; caller ACLs |
@@ -259,3 +259,23 @@ if metadata cannot be confirmed, the request is marked as needing attention,
 never fulfilled, and cannot be replayed. Verify the existing secret in Vault and
 repair its metadata rather than recreating it. Previously created secrets are
 not changed automatically.
+
+
+### Update KV Secret
+
+The Update KV Secret tile uses `/kv-secret-update` and a separate signed
+`update_secret` intake. Like Create KV Secret, it collects a relative secret path,
+Business Unit ID and UserID, then opens the secure form for changed field values
+and the caller's own Vault token. No separate administrator approval is required;
+the caller's Vault ACLs authorize the request. Namespace and mount are fixed to
+`admin` and `onboard-concierge`; alternate targets and caller-selected endpoints
+are rejected.
+
+The token needs read on the exact mount configuration, read/patch on the exact
+secret metadata path, and patch on the exact secret data path. Existing values
+are never read by the app. The bridge reads the active version from metadata,
+then sends a KV v2 JSON merge patch with that version as CAS. Other fields remain
+unchanged, a new version is created, and concurrent writes cause a conflict.
+Missing, deleted or destroyed secrets cannot be updated. Attribution metadata is
+patched after the data write; only confirmed data and metadata writes are logged
+to Requests fulfilled. Partial outcomes require verification and cannot replay.

@@ -79,7 +79,7 @@ async def register(body):
     now = int(time.time())
     source = "IBM Granite chat"
     if body["plan"].get("user_id"):
-        source = "Guided KV secret chat" if body["plan"]["action"] == "create_secret" else "Guided KV mount chat"
+        source = "Guided KV secret chat" if body["plan"]["action"] in {"create_secret", "update_secret"} else "Guided KV mount chat"
     record = {"id": body["id"], "plan": body["plan"], "created_at": now, "updated_at": now,
               "target": target(), "status": "ready_for_execution" if body["plan"].get("approval_mode") == "self_service" else "pending", "source": source, "requester": "Not identity-verified"}
     record["signature"] = intent_signature(record)
