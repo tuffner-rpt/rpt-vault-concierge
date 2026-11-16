@@ -279,3 +279,20 @@ unchanged, a new version is created, and concurrent writes cause a conflict.
 Missing, deleted or destroyed secrets cannot be updated. Attribution metadata is
 patched after the data write; only confirmed data and metadata writes are logged
 to Requests fulfilled. Partial outcomes require verification and cannot replay.
+
+
+### Portal without Watson Orchestrate chat
+
+The portal now exposes only the guided Create KV Secret, Update KV Secret and
+List KV Secrets workflows. The Watson launcher and deployed chat assets are
+removed. Legacy chat URLs redirect to the catalog and chat configuration/token
+APIs return HTTP 410; no new IBM chat identity is issued. Archived agent source
+remains for reference, but the portal no longer loads IBM's chat widget.
+
+Vercel Authentication is configured separately on the portal and bridge projects.
+Set both projects to All Deployments to require team/approved-guest access on
+production as well as previews. The portal uses the server-only
+`VAULT_BRIDGE_PROTECTION_BYPASS` credential in an HTTP header for its existing
+service calls; it is never included in browser URLs or responses. The bridge
+continues to enforce intake credentials, signed plans, Vault caller ACLs and
+administrator policies. Human visitors authenticate to each project's domain.

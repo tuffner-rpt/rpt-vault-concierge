@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { DocumentationWindow } from "./components/DocumentationWindow";
 import { AdminReviewLink } from "./components/AdminReviewLink";
-import { FloatingWatsonChat } from "./components/FloatingWatsonChat";
 
 type Template = {
   id: string;
@@ -63,7 +62,7 @@ export default function Home() {
 
           <section className="template-grid" aria-label="Secret templates">
             {templates.map((template) => (
-              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : template.id === "update-kv-secret" ? "/kv-secret-update" : template.id === "list-kv-secrets" ? "/kv-secrets" : "/vault-onboarding")}>
+              <button className="template-card" key={template.id} onClick={() => window.location.assign(template.id === "kv-mount" ? "/kv-mount" : template.id === "kv-secret" ? "/kv-secret" : template.id === "update-kv-secret" ? "/kv-secret-update" : template.id === "list-kv-secrets" ? "/kv-secrets" : "/")}>
                 <span className={`tile-icon ${template.accent}`}>{template.icon}</span>
                 <span className="tile-arrow">↗</span>
                 <strong>{template.title}</strong>
@@ -78,7 +77,6 @@ export default function Home() {
       </div>
 
       <DocumentationWindow open={docsOpen} onClose={() => setDocsOpen(false)} />
-      <FloatingWatsonChat />
     </main>
   );
 }

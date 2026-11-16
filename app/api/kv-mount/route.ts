@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { bridgeOrigin, chatHeaders } from "@/lib/watsonx-chat";
+import { bridgeOrigin, bridgeServiceHeaders, chatHeaders } from "@/lib/vault-bridge";
 
 export async function POST(request: Request) {
   const protocol = process.env.VERCEL === "1" ? "https:" : new URL(request.url).protocol;
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const key = process.env.KV_MOUNT_INTAKE_KEY;
     if (!key || key.length < 32) throw new Error("KV intake unavailable");
     const response = await fetch(`${bridgeOrigin()}/api/kv-mount-intake`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-kv-mount-key": key },
+      method: "POST", headers: { ...bridgeServiceHeaders(), "Content-Type": "application/json", "x-kv-mount-key": key },
       body: JSON.stringify(body), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw new Error("KV intake unavailable");

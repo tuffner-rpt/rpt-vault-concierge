@@ -15,13 +15,12 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
-import jwt
 from api import admin as admin_review
 from jsonschema import Draft4Validator, ValidationError, SchemaError
 from referencing.exceptions import Unresolvable
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -703,52 +702,10 @@ async def execute_validated(plan, token, payload, body):
 
 
 @app.get("/api/chat-config")
-def chat_config():
-    host = trusted_origin("WXO_HOST_URL")
-    config = {"hostURL": host, "orchestrationID": required("WXO_ORCHESTRATION_ID"), "rootElementID": "root", "showLauncher": False,
-              "chatOptions": {"agentId": required("WXO_AGENT_ID"), "agentEnvironmentId": required("WXO_AGENT_ENVIRONMENT_ID")}}
-    for env, field in [("WXO_CRN", "crn"), ("WXO_DEPLOYMENT_PLATFORM", "deploymentPlatform")]:
-        if os.getenv(env):
-            config[field] = os.environ[env]
-    return config
-
-
 @app.get("/api/kv-mount-chat-config")
-def kv_mount_chat_config():
-    config = chat_config()
-    # Fail closed when the restricted agent is not deployed; never use the general agent.
-    config["chatOptions"] = {"agentId": required("WXO_KV_MOUNT_AGENT_ID"),
-                             "agentEnvironmentId": required("WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID")}
-    return config
-
-
-class ChatTokenInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    chat_session: str | None = Field(default=None, max_length=200)
-
-
 @app.post("/api/chat-token")
-def chat_token(body: ChatTokenInput, request: Request):
-    same_origin(request)
-    # Anonymous planner identity grants no Vault access. Never use context for Vault authorization.
-    cookie = body.chat_session or request.cookies.get("rpt_chat", "")
-    try:
-        subject, signature = cookie.split(".")
-        uuid.UUID(subject)
-        if not hmac.compare_digest(signature, hmac.new(signing_key(), subject.encode(), hashlib.sha256).hexdigest()):
-            raise ValueError()
-    except ValueError:
-        subject = str(uuid.uuid4())
-    signature = hmac.new(signing_key(), subject.encode(), hashlib.sha256).hexdigest()
-    now = int(time.time())
-    try:
-        token = jwt.encode({"sub": subject, "iat": now, "exp": now + 300}, required("WXO_CHAT_PRIVATE_KEY").replace("\\n", "\n"), algorithm="RS256")
-    except (ValueError, jwt.PyJWTError):
-        raise HTTPException(503, "Chat signing key is not configured correctly") from None
-    # In-memory session also works when third-party iframe cookies are blocked.
-    response = JSONResponse({"token": token, "chat_session": f"{subject}.{signature}"})
-    response.set_cookie("rpt_chat", f"{subject}.{signature}", secure=trusted_origin("APP_ORIGIN").startswith("https:"), httponly=True, samesite="lax", max_age=86400)
-    return response
+def retired_chat():
+    raise HTTPException(410, "Chat has been removed. Use the Vault onboarding tiles.")
 
 
 @app.get("/")
@@ -759,12 +716,12 @@ def onboarding_page():
 
 @app.get("/chat")
 def chat_page():
-    return FileResponse(ROOT / "web" / "chat.html")
+    return RedirectResponse(trusted_origin("WEBSITE_ORIGIN") + "/", status_code=307)
 
 
 @app.get("/assets/{name}")
 def asset(name: str):
-    if name not in {"onboard.js", "chat.js", "styles.css", "admin.js", "admin.css", "fulfilled.js", "rpt-logo.jpeg"}:
+    if name not in {"onboard.js", "styles.css", "admin.js", "admin.css", "fulfilled.js", "rpt-logo.jpeg"}:
         raise HTTPException(404)
     return FileResponse(ROOT / "web" / name)
 

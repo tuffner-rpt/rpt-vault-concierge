@@ -3,10 +3,7 @@ import json
 from urllib.parse import urlsplit, parse_qs
 
 import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
 from fastapi.testclient import TestClient
 
 from api import index as bridge
@@ -197,19 +194,12 @@ def test_security_headers_and_assets(client):
     assert client.get("/assets/index.py").status_code == 404
 
 
-def test_chat_identity_signed_short_lived_and_stable_without_cookies(client, monkeypatch):
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
-    monkeypatch.setenv("WXO_CHAT_PRIVATE_KEY", pem)
-    first = client.post("/api/chat-token", headers=HEADERS, json={})
-    assert first.status_code == 200
-    claims = jwt.decode(first.json()["token"], key.public_key(), algorithms=["RS256"])
-    assert claims["exp"] - claims["iat"] == 300
-    client.cookies.clear()
-    second = client.post("/api/chat-token", headers=HEADERS, json={"chat_session": first.json()["chat_session"]})
-    assert jwt.decode(second.json()["token"], key.public_key(), algorithms=["RS256"])["sub"] == claims["sub"]
-    assert "role" not in claims
-    assert "vault" not in json.dumps(claims)
+def test_removed_chat_no_longer_issues_tokens(client):
+    result = client.post("/api/chat-token", headers=HEADERS, json={})
+    assert result.status_code == 410
+    assert 'token' not in result.json()
+    assert 'set-cookie' not in result.headers
+    assert client.get('/assets/chat.js').status_code == 404
 
 
 def test_missing_configuration_fails_closed(client, monkeypatch):
@@ -438,18 +428,12 @@ def test_kv_mount_only_requires_tool_auth(client):
         'business_unit_id': 'BU-123', 'mount': 'onboard-payments', 'kv_version': '2'}).status_code == 401
 
 
-def test_kv_mount_chat_config_never_falls_back_to_general_agent(client, monkeypatch):
-    for key, value in {'WXO_HOST_URL': 'https://ibm.example.com', 'WXO_ORCHESTRATION_ID': 'orch',
-                       'WXO_AGENT_ID': 'general', 'WXO_AGENT_ENVIRONMENT_ID': 'general-live'}.items():
-        monkeypatch.setenv(key, value)
-    monkeypatch.delenv('WXO_KV_MOUNT_AGENT_ID', raising=False)
-    monkeypatch.delenv('WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID', raising=False)
-    assert client.get('/api/kv-mount-chat-config').status_code == 503
-    monkeypatch.setenv('WXO_KV_MOUNT_AGENT_ID', 'kv-only')
-    monkeypatch.setenv('WXO_KV_MOUNT_AGENT_ENVIRONMENT_ID', 'kv-live')
-    assert client.get('/api/kv-mount-chat-config').json()['chatOptions'] == {
-        'agentId': 'kv-only', 'agentEnvironmentId': 'kv-live'}
-    assert client.get('/api/chat-config').json()['chatOptions']['agentId'] == 'general'
+def test_removed_chat_configs_and_legacy_page(client, monkeypatch):
+    monkeypatch.setenv('WEBSITE_ORIGIN', 'https://portal.example.com')
+    assert client.get('/api/kv-mount-chat-config').status_code == 410
+    assert client.get('/api/chat-config').status_code == 410
+    result = client.get('/chat', follow_redirects=False)
+    assert result.status_code == 307 and result.headers['location'] == 'https://portal.example.com/'
 
 
 @pytest.fixture

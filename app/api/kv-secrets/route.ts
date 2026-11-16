@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { bridgeOrigin, chatHeaders } from "@/lib/watsonx-chat";
+import { bridgeOrigin, bridgeServiceHeaders, chatHeaders } from "@/lib/vault-bridge";
 
 export async function POST(request: Request) {
   const protocol = process.env.VERCEL === "1" ? "https:" : new URL(request.url).protocol;
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const key = process.env.KV_SECRET_LIST_KEY;
     if (!key || key.length < 32) throw new Error("Listing unavailable");
     const response = await fetch(`${bridgeOrigin()}/api/kv-secret-list`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-kv-list-key": key },
+      method: "POST", headers: { ...bridgeServiceHeaders(), "Content-Type": "application/json", "x-kv-list-key": key },
       body: JSON.stringify({ vault_token: body.vault_token, prefix: body.prefix ?? "" }),
       redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20000),
     });

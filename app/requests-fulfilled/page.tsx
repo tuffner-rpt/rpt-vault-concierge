@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { bridgeOrigin } from "@/lib/watsonx-chat";
+import { bridgeOrigin } from "@/lib/vault-bridge";
 
 export const dynamic = "force-dynamic";
 
