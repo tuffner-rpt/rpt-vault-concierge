@@ -1,0 +1,13 @@
+<!-- Add this to the existing website after deploying the bridge and IBM agent.
+     Replace the origin with the stable bridge deployment origin.
+     WEBSITE_ORIGIN on the bridge must match the parent website's origin.
+     Permit this bridge origin in the website's frame-src CSP if it has one.
+     Review links must open in a new tab: /onboard deliberately cannot be framed. -->
+<iframe
+  src="https://YOUR-BRIDGE-ORIGIN/chat"
+  title="RPT Vault onboarding assistant powered by IBM Granite"
+  width="100%"
+  height="720"
+  style="border: 0; border-radius: 12px; min-height: 600px"
+  referrerpolicy="no-referrer"
+></iframe>
